@@ -95,17 +95,8 @@ create table if not exists addresses (
 
 create index if not exists addresses_user_idx on addresses (user_id);
 
-create table if not exists cart_items (
-  id              uuid primary key default gen_random_uuid(),
-  user_id         uuid not null references auth.users (id) on delete cascade,
-  product_id      uuid not null references products (id) on delete cascade,
-  qty             int not null default 1 check (qty > 0),
-  saved_for_later boolean not null default false,
-  created_at      timestamptz not null default now(),
-  unique (user_id, product_id)
-);
-
-create index if not exists cart_items_user_idx on cart_items (user_id);
+-- The cart deliberately lives in an httpOnly cookie rather than a table, so a
+-- signed-out visitor can fill one and only has to authenticate at checkout.
 
 create table if not exists orders (
   id             uuid primary key default gen_random_uuid(),
@@ -150,7 +141,6 @@ alter table products    enable row level security;
 alter table reviews     enable row level security;
 alter table profiles    enable row level security;
 alter table addresses   enable row level security;
-alter table cart_items  enable row level security;
 alter table orders      enable row level security;
 alter table order_items enable row level security;
 
@@ -177,10 +167,6 @@ begin
   end if;
   if not exists (select 1 from pg_policies where tablename = 'addresses' and policyname = 'addresses_own') then
     create policy addresses_own on addresses for all
-      using (auth.uid() = user_id) with check (auth.uid() = user_id);
-  end if;
-  if not exists (select 1 from pg_policies where tablename = 'cart_items' and policyname = 'cart_items_own') then
-    create policy cart_items_own on cart_items for all
       using (auth.uid() = user_id) with check (auth.uid() = user_id);
   end if;
   if not exists (select 1 from pg_policies where tablename = 'orders' and policyname = 'orders_own') then

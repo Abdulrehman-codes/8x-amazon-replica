@@ -114,7 +114,7 @@ export async function searchProducts(
   // the sidebar keeps showing the options a shopper can still switch to.
   const facets = buildFacets(matched);
 
-  let items = matched;
+  let items: Product[] = matched;
   if (params.brands?.length) {
     const wanted = new Set(params.brands);
     items = items.filter((p) => p.brand && wanted.has(p.brand));
