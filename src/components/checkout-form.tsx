@@ -2,7 +2,6 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Image from "next/image";
-import { useFormStatus } from "react-dom";
 import { AlertCircle, Loader2, Lock } from "lucide-react";
 import { placeOrder, type CheckoutState } from "@/lib/actions/orders";
 import {
@@ -31,7 +30,10 @@ export function CheckoutForm({
   /** The voucher currently held, priced live as the delivery speed changes. */
   coupon?: Coupon | null;
 }) {
-  const [state, formAction] = useActionState<CheckoutState, FormData>(
+  // isPending comes from the action rather than useFormStatus, because the
+  // submit button now lives outside the form it submits and that hook only
+  // reports for a form it is inside.
+  const [state, formAction, isPending] = useActionState<CheckoutState, FormData>(
     placeOrder,
     {},
   );
@@ -62,8 +64,12 @@ export function CheckoutForm({
   const eta = deliveryDate(slowest, speed);
 
   return (
-    <form action={formAction} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="space-y-4">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      {/* The summary column is deliberately a sibling of this form, not a
+          child. The coupon box carries its own form, and a form nested inside
+          another is dropped by the browser — which silently turned "Apply"
+          into a second submit button for the order. */}
+      <form id="checkout-form" action={formAction} className="space-y-4">
         {/* 1 — Address */}
         <Section step={1} title="Delivery address">
           {addresses.length > 0 && (
@@ -206,12 +212,12 @@ export function CheckoutForm({
             />
           </div>
         </Section>
-      </div>
+      </form>
 
       {/* Summary */}
       <aside className="h-fit space-y-3 lg:sticky lg:top-32">
         <div className="rounded-card bg-surface p-4 shadow-sm">
-          <PlaceOrderButton total={total} />
+          <PlaceOrderButton total={total} pending={isPending} />
 
           {state.error && (
             <p
@@ -291,7 +297,7 @@ export function CheckoutForm({
           </ul>
         </div>
       </aside>
-    </form>
+    </div>
   );
 }
 
@@ -376,11 +382,17 @@ function Line({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PlaceOrderButton({ total }: { total: number }) {
-  const { pending } = useFormStatus();
+function PlaceOrderButton({
+  total,
+  pending,
+}: {
+  total: number;
+  pending: boolean;
+}) {
   return (
     <button
       type="submit"
+      form="checkout-form"
       disabled={pending}
       className="flex w-full items-center justify-center gap-2 rounded-full bg-accent py-2.5 text-sm font-semibold text-ink transition hover:bg-accent-hover disabled:opacity-70"
     >
