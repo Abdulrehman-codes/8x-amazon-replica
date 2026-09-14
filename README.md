@@ -46,9 +46,11 @@ bookmarkable, back-button-correct, and functional with JavaScript disabled.
 offering the options a shopper can still move to instead of collapsing to
 whatever is already selected.
 
-**Search paging happens in memory.** At this catalog size that buys exact facet
-counts for nothing. The comment in `src/lib/queries.ts` marks where that stops
-being true.
+**Search runs entirely in Postgres.** `search_catalog` does filtering, faceting,
+sorting and paging in one round trip and returns a single page plus its facet
+counts. An earlier version pulled the whole match set and counted facets in
+JavaScript, which was fine at 194 products and wrong at 2,800 — page 40 of a
+2,600-result department now costs the same as page 1.
 
 ## What was deliberately left out
 
@@ -56,6 +58,23 @@ Third-party sellers and seller dashboards, real payment processing, returns and
 refunds, streaming and subscription services, wishlists and registries, product
 Q&A, customer-written reviews, coupons. All of them are visible on the original;
 none is on the path from landing to placed order.
+
+## The catalog
+
+2,800+ products across 9 departments, from two live sources:
+
+| Source | Contributes | Why |
+| --- | --- | --- |
+| [DummyJSON](https://dummyjson.com) | 194 products across 8 departments | Real product photography, brands, stock and shipping terms |
+| [Open Library](https://openlibrary.org) | 2,600+ books across 10 subjects | Real titles, authors and cover art, 100 records a request |
+
+Open Food Facts was evaluated for a large grocery department and rejected: it
+serves at most 24 records a request and begins returning HTML error pages under
+light use, which is no basis for a repeatable seed.
+
+Open Library publishes bibliographic data, not commerce data, so price, stock
+and delivery windows for books are derived deterministically from the title —
+a re-seed produces a byte-identical catalog.
 
 ## Stack
 

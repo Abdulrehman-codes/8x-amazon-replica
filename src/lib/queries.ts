@@ -111,154 +111,55 @@ export type SearchResult = {
 };
 
 /**
- * Text matching runs in Postgres; faceting and paging run here.
- *
- * With a catalog this size the whole match set fits comfortably in memory,
- * and computing facets in JS gives exact counts for free. A catalog an order
- * of magnitude larger would want this as a Postgres function instead.
+ * Catalog search. Filtering, faceting, sorting and paging all happen inside
+ * `search_catalog` (see supabase/search-function.sql) so the server returns
+ * exactly one page plus its facet counts, rather than the whole match set.
  */
 export const searchProducts = catalogQuery(
   ["search"],
   async (params: SearchParamsShape): Promise<SearchResult> => {
-    const embed = `${PRODUCT_COLUMNS}, categories!inner(slug, name, department_slug)`;
+    const requestedPage = Math.max(1, params.page ?? 1);
 
-    let query = supabasePublic.from("products").select(embed);
-
-    if (params.category) query = query.eq("category_slug", params.category);
-    if (params.department) {
-      query = query.eq("categories.department_slug", params.department);
-    }
-
-    if (params.q?.trim()) {
-      query = query.textSearch("search_tsv", params.q.trim(), {
-        type: "websearch",
-        config: "english",
-      });
-    }
-
-    const { data, error } = await query.limit(1000);
+    const { data, error } = await supabasePublic.rpc("search_catalog", {
+      q: params.q?.trim() || null,
+      dept: params.department ?? null,
+      cat: params.category ?? null,
+      brand_list: params.brands?.length ? params.brands : null,
+      min_price: params.minPrice ?? null,
+      max_price: params.maxPrice ?? null,
+      min_rating: params.minRating ?? null,
+      prime_only: params.prime ?? false,
+      deals_only: params.deals ?? false,
+      sort_key: params.sort ?? "featured",
+      page_num: requestedPage,
+      page_size: PAGE_SIZE,
+    });
     if (error) throw error;
 
-    let matched = (data ?? []) as unknown as (Product & {
-      categories: Category;
-    })[];
+    const payload = data as unknown as {
+      total: number;
+      items: Product[];
+      facets: Facets;
+    } | null;
 
-    // Full-text search is precise but unforgiving of partial words; fall back
-    // to a substring match so "head" still finds "Headphones".
-    if (params.q?.trim() && matched.length === 0) {
-      const term = params.q.trim();
-      let fallback = supabasePublic
-        .from("products")
-        .select(embed)
-        .or(`title.ilike.%${term}%,brand.ilike.%${term}%`);
-      if (params.category) {
-        fallback = fallback.eq("category_slug", params.category);
-      }
-      if (params.department) {
-        fallback = fallback.eq("categories.department_slug", params.department);
-      }
-      const { data: loose } = await fallback.limit(1000);
-      matched = (loose ?? []) as unknown as (Product & {
-        categories: Category;
-      })[];
-    }
-
-    // Facets are computed before the price/brand/rating filters are applied so
-    // the sidebar keeps showing the options a shopper can still switch to.
-    const facets = buildFacets(matched);
-
-    let items: Product[] = matched;
-    if (params.brands?.length) {
-      const wanted = new Set(params.brands);
-      items = items.filter((p) => p.brand && wanted.has(p.brand));
-    }
-    if (params.minPrice != null) {
-      items = items.filter((p) => p.price_cents >= params.minPrice!);
-    }
-    if (params.maxPrice != null) {
-      items = items.filter((p) => p.price_cents <= params.maxPrice!);
-    }
-    if (params.minRating != null) {
-      items = items.filter((p) => p.rating >= params.minRating!);
-    }
-    if (params.prime) items = items.filter((p) => p.is_prime);
-    if (params.deals) {
-      items = items.filter((p) => p.list_price_cents > p.price_cents);
-    }
-
-    items = sortProducts(items, params.sort ?? "featured");
-
-    const total = items.length;
+    const total = payload?.total ?? 0;
     const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    const page = Math.min(Math.max(1, params.page ?? 1), pageCount);
-    const start = (page - 1) * PAGE_SIZE;
 
     return {
-      items: items.slice(start, start + PAGE_SIZE),
+      items: payload?.items ?? [],
       total,
-      page,
+      page: Math.min(requestedPage, pageCount),
       pageCount,
-      facets,
+      facets:
+        payload?.facets ?? {
+          brands: [],
+          categories: [],
+          priceBounds: { min: 0, max: 0 },
+        },
     };
   },
   600,
 );
-
-function buildFacets(products: (Product & { categories?: Category })[]): Facets {
-  const brands = new Map<string, number>();
-  const categories = new Map<string, { name: string; count: number }>();
-  let min = Number.POSITIVE_INFINITY;
-  let max = 0;
-
-  for (const p of products) {
-    if (p.brand) brands.set(p.brand, (brands.get(p.brand) ?? 0) + 1);
-    const catName = p.categories?.name ?? p.category_slug;
-    const existing = categories.get(p.category_slug);
-    categories.set(p.category_slug, {
-      name: catName,
-      count: (existing?.count ?? 0) + 1,
-    });
-    min = Math.min(min, p.price_cents);
-    max = Math.max(max, p.price_cents);
-  }
-
-  return {
-    brands: [...brands.entries()]
-      .map(([value, count]) => ({ value, count }))
-      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
-    categories: [...categories.entries()]
-      .map(([slug, v]) => ({ slug, name: v.name, count: v.count }))
-      .sort((a, b) => b.count - a.count),
-    priceBounds: {
-      min: Number.isFinite(min) ? min : 0,
-      max,
-    },
-  };
-}
-
-function sortProducts(items: Product[], sort: SortKey) {
-  const copy = [...items];
-  switch (sort) {
-    case "price-asc":
-      return copy.sort((a, b) => a.price_cents - b.price_cents);
-    case "price-desc":
-      return copy.sort((a, b) => b.price_cents - a.price_cents);
-    case "rating":
-      return copy.sort(
-        (a, b) => b.rating - a.rating || b.rating_count - a.rating_count,
-      );
-    case "newest":
-      return copy.sort((a, b) => a.slug.localeCompare(b.slug));
-    default:
-      // "Featured" blends score and volume so a lone 5-star review does not
-      // outrank a 4.6 with two thousand.
-      return copy.sort(
-        (a, b) =>
-          b.rating * Math.log10(b.rating_count + 10) -
-          a.rating * Math.log10(a.rating_count + 10),
-      );
-  }
-}
 
 export const getProduct = catalogQuery(
   ["product"],

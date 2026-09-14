@@ -8,6 +8,7 @@
  * only ever runs from a terminal and never ships to the client.
  */
 import { createClient } from "@supabase/supabase-js";
+import { fetchBooks, coverFor } from "./books.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -21,7 +22,30 @@ if (!url || !key) {
 
 const db = createClient(url, key, { auth: { persistSession: false } });
 
-/** The 24 source categories grouped into the 8 departments the nav shows. */
+/**
+ * Books come from Open Library, which is the only free catalogue I found that
+ * is both large and dependable: 100 records a request, a real cover on every
+ * one, real authors. Open Food Facts was the other candidate and was dropped
+ * — it caps out at 24 records a request and starts returning HTML error pages
+ * under even light use, which is no basis for a repeatable seed.
+ */
+const BOOK_SUBJECTS = [
+  { slug: "fiction", name: "Fiction", subject: "fiction" },
+  { slug: "mystery-thrillers", name: "Mystery & Thrillers", subject: "mystery" },
+  { slug: "science-fiction", name: "Science Fiction", subject: "science_fiction" },
+  { slug: "fantasy", name: "Fantasy", subject: "fantasy" },
+  { slug: "history-books", name: "History", subject: "history" },
+  { slug: "biographies", name: "Biographies", subject: "biography" },
+  { slug: "childrens-books", name: "Children's Books", subject: "juvenile_fiction" },
+  { slug: "cookbooks", name: "Cookbooks", subject: "cooking" },
+  { slug: "business-books", name: "Business", subject: "business" },
+  { slug: "poetry", name: "Poetry", subject: "poetry" },
+];
+
+/** Pages of 100 pulled per subject. */
+const BOOK_PAGES_PER_SUBJECT = 3;
+
+/** The 24 source categories grouped into the 8 product departments. */
 const DEPARTMENTS = [
   {
     slug: "electronics",
@@ -69,6 +93,11 @@ const DEPARTMENTS = [
     slug: "automotive",
     name: "Automotive",
     categories: ["vehicle", "motorcycle"],
+  },
+  {
+    slug: "books",
+    name: "Books",
+    categories: BOOK_SUBJECTS.map((s) => s.slug),
   },
 ];
 
@@ -143,6 +172,35 @@ const NEGATIVE = [
   "Not what I expected for the price. The description oversells it and I will probably return mine.",
 ];
 
+const BOOK_POSITIVE = [
+  "Read it in two sittings. The pacing never sags and the ending actually earns itself, which is rarer than it should be.",
+  "I bought this on a whim and ended up pressing it on three friends. The writing is sharp without being showy.",
+  "Exactly the book I wanted and did not know how to ask for. The copy arrived in beautiful condition too.",
+  "Stayed with me for days after finishing. I have already ordered the author's earlier work.",
+];
+const BOOK_NEUTRAL = [
+  "Enjoyable, if a little uneven. The first half is much stronger than the last, but I am glad I read it.",
+  "Well written and worth the time, though it covers ground you will recognise if you read widely in this area.",
+  "Good, not great. A solid way to spend a weekend without ever quite surprising me.",
+];
+const BOOK_NEGATIVE = [
+  "The premise promised more than the book delivers. I put it down around halfway and never picked it back up.",
+  "Competent prose, thin characters. It reads like a first draft that needed one more honest editor.",
+  "Not for me. Others clearly love it, so take this as a matter of taste rather than craft.",
+];
+
+const REVIEWERS = [
+  "Priya Raman", "Tom Whitfield", "Aisha Nkemdi", "Marco Bellini", "Sara Lindqvist",
+  "Dev Patel", "Hannah Brooks", "Yusuf Demir", "Claire Fontaine", "Kenji Watanabe",
+  "Nina Kowalski", "Samuel Adeyemi", "Elena Rossi", "Jonas Meyer", "Farah Haddad",
+];
+
+function bookReviewBody(rating, seed) {
+  const bank =
+    rating >= 4 ? BOOK_POSITIVE : rating === 3 ? BOOK_NEUTRAL : BOOK_NEGATIVE;
+  return bank[Math.floor(hashUnit(seed, rating) * bank.length)];
+}
+
 function reviewBody(rating, seed) {
   const bank = rating >= 4 ? POSITIVE : rating === 3 ? NEUTRAL : NEGATIVE;
   return bank[Math.floor(hashUnit(seed, rating) * bank.length)];
@@ -153,7 +211,11 @@ async function main() {
   const res = await fetch("https://dummyjson.com/products?limit=0");
   if (!res.ok) throw new Error(`Catalog fetch failed: ${res.status}`);
   const { products: source } = await res.json();
-  console.log(`  ${source.length} products`);
+  console.log(`  ${source.length} products from the product catalogue`);
+
+  console.log("Fetching books…");
+  const bookRows = await fetchBooks(BOOK_SUBJECTS, BOOK_PAGES_PER_SUBJECT);
+  console.log(`  ${bookRows.length} books`);
 
   // ---------------------------------------------------------- departments --
   const deptRows = DEPARTMENTS.map((d, i) => ({
@@ -170,17 +232,22 @@ async function main() {
   let catSort = 0;
   for (const dept of DEPARTMENTS) {
     for (const cat of dept.categories) {
+      const bookSubject = BOOK_SUBJECTS.find((b) => b.slug === cat);
       const first = source.find((p) => p.category === cat);
       catRows.push({
         slug: cat,
-        name: cat
-          .split("-")
-          .map((w) => w[0].toUpperCase() + w.slice(1))
-          .join(" ")
-          .replace(/^Mens /, "Men's ")
-          .replace(/^Womens /, "Women's "),
+        name:
+          bookSubject?.name ??
+          cat
+            .split("-")
+            .map((w) => w[0].toUpperCase() + w.slice(1))
+            .join(" ")
+            .replace(/^Mens /, "Men's ")
+            .replace(/^Womens /, "Women's "),
         department_slug: dept.slug,
-        image_url: first?.thumbnail ?? null,
+        image_url: bookSubject
+          ? coverFor(bookRows, cat)
+          : (first?.thumbnail ?? null),
         sort: catSort++,
       });
     }
@@ -229,17 +296,28 @@ async function main() {
       };
     });
 
-  ({ error } = await db
-    .from("products")
-    .upsert(productRows, { onConflict: "slug" }));
-  if (error) throw error;
-  console.log(`  ${productRows.length} products`);
+  const allProducts = [...productRows, ...bookRows];
+
+  for (let i = 0; i < allProducts.length; i += 500) {
+    const { error: upErr } = await db
+      .from("products")
+      .upsert(allProducts.slice(i, i + 500), { onConflict: "slug" });
+    if (upErr) throw upErr;
+  }
+  console.log(`  ${allProducts.length} products written`);
 
   // --------------------------------------------------------------- reviews --
-  const { data: saved, error: readErr } = await db
-    .from("products")
-    .select("id, slug, title, price_cents, images");
-  if (readErr) throw readErr;
+  const saved = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error: readErr } = await db
+      .from("products")
+      .select("id, slug, title, price_cents, images")
+      .range(from, from + 999);
+    if (readErr) throw readErr;
+    saved.push(...(data ?? []));
+    // PostgREST caps a plain select at 1000 rows, so page until it runs dry.
+    if (!data || data.length < 1000) break;
+  }
   const idBySlug = new Map(saved.map((r) => [r.slug, r.id]));
 
   await db.from("reviews").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -258,6 +336,33 @@ async function main() {
         body: reviewBody(r.rating, `${slug}-${i}`),
         verified: hashUnit(`${slug}-${i}`, 3) > 0.25,
         created_at: r.date,
+      });
+    }
+  }
+
+  for (const book of bookRows) {
+    const productId = idBySlug.get(book.slug);
+    if (!productId) continue;
+    const count = 2 + Math.floor(hashUnit(book.slug, 21) * 3);
+    for (let i = 0; i < count; i++) {
+      const roll = hashUnit(`${book.slug}-${i}`, 31);
+      const rating = roll > 0.72 ? 5 : roll > 0.4 ? 4 : roll > 0.18 ? 3 : 2;
+      const date = new Date(
+        Date.now() - Math.floor(hashUnit(`${book.slug}-${i}`, 41) * 500) * 86_400_000,
+      );
+      reviewRows.push({
+        product_id: productId,
+        author_name: REVIEWERS[Math.floor(hashUnit(`${book.slug}-${i}`, 51) * REVIEWERS.length)],
+        rating,
+        title:
+          rating >= 4
+            ? "Worth every page"
+            : rating === 3
+              ? "Good, with caveats"
+              : "Did not land for me",
+        body: bookReviewBody(rating, `${book.slug}-${i}`),
+        verified: hashUnit(`${book.slug}-${i}`, 61) > 0.2,
+        created_at: date.toISOString(),
       });
     }
   }
