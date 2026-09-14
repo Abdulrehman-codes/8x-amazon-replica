@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { SearchX } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { FilterSidebar } from "@/components/filter-sidebar";
+import { MobileFilters } from "@/components/mobile-filters";
 import { SortSelect } from "@/components/sort-select";
 import { Pagination } from "@/components/pagination";
 import { searchProducts, getCategory, getDepartment, PAGE_SIZE } from "@/lib/queries";
@@ -16,6 +17,14 @@ export default async function SearchPage({ searchParams }: PageProps<"/s">) {
   const result = await searchProducts(params);
 
   const heading = await headingFor(params.q, params.category, params.department);
+
+  const activeFilterCount =
+    (params.brands?.length ?? 0) +
+    (params.category ? 1 : 0) +
+    (params.minPrice != null || params.maxPrice != null ? 1 : 0) +
+    (params.minRating != null ? 1 : 0) +
+    (params.prime ? 1 : 0) +
+    (params.deals ? 1 : 0);
   const firstIndex = (result.page - 1) * PAGE_SIZE + 1;
   const lastIndex = Math.min(result.page * PAGE_SIZE, result.total);
 
@@ -40,7 +49,12 @@ export default async function SearchPage({ searchParams }: PageProps<"/s">) {
             "No results"
           )}
         </p>
-        <SortSelect raw={raw} value={params.sort ?? "featured"} />
+        <div className="flex items-center gap-3">
+          <MobileFilters activeCount={activeFilterCount}>
+            <FilterSidebar facets={result.facets} raw={raw} />
+          </MobileFilters>
+          <SortSelect raw={raw} value={params.sort ?? "featured"} />
+        </div>
       </div>
 
       <div className="flex gap-5">

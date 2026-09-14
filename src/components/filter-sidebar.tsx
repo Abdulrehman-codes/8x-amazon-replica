@@ -30,7 +30,7 @@ export function FilterSidebar({
   const maxPrice = typeof raw.maxPrice === "string" ? raw.maxPrice : undefined;
 
   return (
-    <aside className="w-56 shrink-0 space-y-6 text-sm">
+    <aside className="w-full shrink-0 space-y-6 text-sm lg:w-56">
       <Group title="Delivery">
         <Row
           href={buildHref(raw, { prime: raw.prime === "1" ? null : 1 })}
