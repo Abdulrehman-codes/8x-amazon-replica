@@ -6,10 +6,23 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { demoSignInAction, signOutAction } from "@/lib/actions/auth";
 
-const LINKS = [
+/**
+ * Two columns, like the original's flyout — but every entry goes somewhere
+ * that exists. A menu full of dead links is worse than a short menu.
+ */
+const ACCOUNT_LINKS = [
   { href: "/orders", label: "Your orders" },
-  { href: "/account", label: "Your account" },
+  { href: "/account/addresses", label: "Your addresses" },
+  { href: "/account", label: "Account settings" },
   { href: "/cart", label: "Your cart" },
+];
+
+const SHOP_LINKS = [
+  { href: "/s?deals=1&sort=featured", label: "Today's deals" },
+  { href: "/s?sort=rating", label: "Top rated" },
+  { href: "/s?department=books", label: "Books" },
+  { href: "/s?maxPrice=2500", label: "Under $25" },
+  { href: "/s?prime=1", label: "Express delivery" },
 ];
 
 export function AccountMenu({ name }: { name: string | null }) {
@@ -31,22 +44,20 @@ export function AccountMenu({ name }: { name: string | null }) {
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="z-50 w-64 rounded-card border border-border bg-surface p-3 shadow-lg"
+          className="z-50 w-[22rem] rounded-card border border-border bg-surface p-4 shadow-xl"
         >
           {name ? (
             <>
-              <p className="px-1 pb-2 text-sm font-semibold">Hello, {name}</p>
-              {LINKS.map((link) => (
-                <DropdownMenu.Item key={link.href} asChild>
-                  <Link
-                    href={link.href}
-                    className="block rounded px-1 py-1.5 text-sm text-fg outline-none hover:bg-canvas focus:bg-canvas"
-                  >
-                    {link.label}
-                  </Link>
-                </DropdownMenu.Item>
-              ))}
-              <form action={signOutAction} className="mt-2 border-t border-border pt-2">
+              <p className="border-b border-border pb-2 text-sm font-semibold">
+                Hello, {name}
+              </p>
+
+              <div className="grid grid-cols-2 gap-4 pt-3">
+                <Column title="Your account" links={ACCOUNT_LINKS} />
+                <Column title="Keep shopping" links={SHOP_LINKS} />
+              </div>
+
+              <form action={signOutAction} className="mt-3 border-t border-border pt-2">
                 <button
                   type="submit"
                   className="w-full rounded px-1 py-1.5 text-left text-sm text-link hover:text-link-hover"
@@ -70,6 +81,11 @@ export function AccountMenu({ name }: { name: string | null }) {
                 </Link>
               </p>
 
+              <div className="mt-3 grid grid-cols-2 gap-4 border-t border-border pt-3">
+                <Column title="Your account" links={ACCOUNT_LINKS} />
+                <Column title="Keep shopping" links={SHOP_LINKS} />
+              </div>
+
               <form
                 action={demoSignInAction}
                 className="mt-3 border-t border-border pt-3"
@@ -90,5 +106,33 @@ export function AccountMenu({ name }: { name: string | null }) {
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
+  );
+}
+
+function Column({
+  title,
+  links,
+}: {
+  title: string;
+  links: { href: string; label: string }[];
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-sm font-bold">{title}</p>
+      <ul className="space-y-1">
+        {links.map((link) => (
+          <li key={link.href}>
+            <DropdownMenu.Item asChild>
+              <Link
+                href={link.href}
+                className="block rounded py-0.5 text-[13px] text-fg-muted outline-none transition hover:text-link-hover focus:text-link-hover"
+              >
+                {link.label}
+              </Link>
+            </DropdownMenu.Item>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
