@@ -77,11 +77,21 @@ Email so sign-up completes in one step.
 
 ### Environment
 
-| Variable | Where it is used |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Browser and server |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server, under RLS |
-| `SUPABASE_SERVICE_ROLE_KEY` | Seed script only — never shipped to the client |
+| Variable | Where it is used | Set in hosting? |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser and server | Yes |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server, under RLS | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | `scripts/seed.mjs` only, from a terminal | **No** |
+
+The first two keep their `NEXT_PUBLIC_` prefix deliberately: `lib/supabase/client.ts`
+runs in the browser, and without the prefix those values are `undefined` at
+runtime. Publishing them is safe by design — the anon key only asserts "an
+anonymous visitor", and every table's access is decided by RLS, not by the key.
+
+The service role key is the one that matters. It bypasses RLS entirely, nothing
+under `src/` reads it, and the deployment never needs it — so it should not
+exist in the hosting provider's environment at all. It must never be given a
+`NEXT_PUBLIC_` prefix, which would ship it to every visitor's browser.
 
 ## Agent logs
 
