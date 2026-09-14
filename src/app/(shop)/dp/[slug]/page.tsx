@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -40,13 +41,10 @@ export default async function ProductPage({ params }: PageProps<"/dp/[slug]">) {
   const product = await getProduct(slug);
   if (!product) notFound();
 
-  const [reviews, related, bundle, category] = await Promise.all([
-    getReviews(product.id),
-    getRelated(product),
-    getBoughtTogether(product),
-    getCategory(product.category_slug),
-  ]);
-
+  // Only the product and its breadcrumb are awaited here. Resolving them
+  // before the response commits is what lets a missing product answer 404
+  // rather than a streamed 200; everything below the fold arrives after.
+  const category = await getCategory(product.category_slug);
   const eta = deliveryDate(product.ship_days);
 
   return (
@@ -165,6 +163,29 @@ export default async function ProductPage({ params }: PageProps<"/dp/[slug]">) {
         </div>
       </div>
 
+      <Suspense fallback={<ExtrasSkeleton />}>
+        <ProductExtras product={product} categoryName={category?.name} />
+      </Suspense>
+    </div>
+  );
+}
+
+/** Reviews, bundle and related products — streamed in after the buy box. */
+async function ProductExtras({
+  product,
+  categoryName,
+}: {
+  product: Product;
+  categoryName?: string;
+}) {
+  const [reviews, related, bundle] = await Promise.all([
+    getReviews(product.id),
+    getRelated(product),
+    getBoughtTogether(product),
+  ]);
+
+  return (
+    <>
       {bundle.length > 0 && (
         <BoughtTogether product={product} bundle={bundle} />
       )}
@@ -172,10 +193,19 @@ export default async function ProductPage({ params }: PageProps<"/dp/[slug]">) {
       <ReviewsSection product={product} reviews={reviews} />
 
       <ProductRail
-        title={`More in ${category?.name ?? "this category"}`}
+        title={`More in ${categoryName ?? "this category"}`}
         href={`/s?category=${product.category_slug}`}
         products={related}
       />
+    </>
+  );
+}
+
+function ExtrasSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="h-40 animate-pulse rounded-card bg-surface" />
+      <div className="h-72 animate-pulse rounded-card bg-surface" />
     </div>
   );
 }
