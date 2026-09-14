@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../supabase/server";
-import { getCart, CART_COOKIE } from "../cart";
+import { getCart } from "../cart";
+import { CART_COOKIE } from "../cart-cookie";
 import {
   deliveryDate,
   shippingCentsFor,

@@ -275,6 +275,7 @@ async function main() {
   console.log("Seed complete.");
 }
 
+// Must match src/lib/demo.ts, which the sign-in button reads.
 const DEMO_EMAIL = "demo@bazaar.shop";
 const DEMO_PASSWORD = "demo-shopper-2024";
 

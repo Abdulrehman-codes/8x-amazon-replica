@@ -2,7 +2,12 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { CART_COOKIE, MAX_QTY, parseCart, type CartCookieLine } from "../cart";
+import {
+  CART_COOKIE,
+  MAX_QTY,
+  parseCart,
+  type CartCookieLine,
+} from "../cart-cookie";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,

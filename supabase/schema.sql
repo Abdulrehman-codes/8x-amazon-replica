@@ -43,13 +43,32 @@ create table if not exists products (
 );
 
 -- Full-text search over the fields a shopper actually types.
+--
+-- The document is assembled by a wrapper function rather than inline, because
+-- array_to_string is only STABLE and a generated column requires IMMUTABLE.
+-- Declaring the wrapper immutable is honest here: for a text[] the result is
+-- fully determined by its arguments, same row in, same tsvector out.
+create or replace function public.product_search_doc(
+  title       text,
+  brand       text,
+  tags        text[],
+  description text
+)
+returns tsvector
+language sql
+immutable
+parallel safe
+as $doc$
+  select setweight(to_tsvector('english', coalesce(title, '')), 'A')
+      || setweight(to_tsvector('english', coalesce(brand, '')), 'B')
+      || setweight(to_tsvector('english', coalesce(array_to_string(tags, ' '), '')), 'B')
+      || setweight(to_tsvector('english', coalesce(description, '')), 'C');
+$doc$;
+
 alter table products
   add column if not exists search_tsv tsvector
   generated always as (
-    setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(brand, '')), 'B') ||
-    setweight(to_tsvector('english', array_to_string(tags, ' ')), 'B') ||
-    setweight(to_tsvector('english', coalesce(description, '')), 'C')
+    public.product_search_doc(title, brand, tags, description)
   ) stored;
 
 create index if not exists products_search_idx   on products using gin (search_tsv);

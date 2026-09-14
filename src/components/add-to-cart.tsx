@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
 import { addToCart } from "@/lib/actions/cart";
-import { MAX_QTY } from "@/lib/cart";
+import { MAX_QTY } from "@/lib/cart-cookie";
 import { cn } from "@/lib/utils";
 
 export function AddToCart({

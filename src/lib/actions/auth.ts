@@ -4,9 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../supabase/server";
-
-export const DEMO_EMAIL = "demo@bazaar.shop";
-export const DEMO_PASSWORD = "demo-shopper-2024";
+import { DEMO_EMAIL, DEMO_PASSWORD } from "../demo";
 
 export type AuthState = { error?: string };
 

@@ -12,7 +12,7 @@ import {
 } from "@/lib/actions/cart";
 import { Price } from "@/components/ui/price";
 import { ExpressBadge } from "@/components/ui/express-badge";
-import { MAX_QTY } from "@/lib/cart";
+import { MAX_QTY } from "@/lib/cart-cookie";
 import { deliveryDate, formatDeliveryDate } from "@/lib/delivery";
 import { cn } from "@/lib/utils";
 import type { CartLine } from "@/lib/types";

@@ -1,38 +1,7 @@
 import { cookies } from "next/headers";
 import { getProductsByIds } from "./queries";
+import { CART_COOKIE, parseCart, type CartCookieLine } from "./cart-cookie";
 import type { CartLine, Product } from "./types";
-
-export const CART_COOKIE = "bazaar_cart";
-export const MAX_QTY = 30;
-
-export type CartCookieLine = {
-  /** Product id. */
-  i: string;
-  /** Quantity. */
-  q: number;
-  /** Saved for later rather than in the active cart. */
-  s?: 1;
-};
-
-export function parseCart(raw: string | undefined): CartCookieLine[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (l): l is CartCookieLine =>
-          typeof l?.i === "string" && typeof l?.q === "number",
-      )
-      .map((l) => ({
-        i: l.i,
-        q: Math.max(1, Math.min(MAX_QTY, Math.floor(l.q))),
-        ...(l.s ? { s: 1 as const } : {}),
-      }));
-  } catch {
-    return [];
-  }
-}
 
 export async function readCart(): Promise<CartCookieLine[]> {
   const store = await cookies();
