@@ -44,6 +44,17 @@ const checkoutSchema = z.object({
   cardCvc: z.string().regex(/^\d{3,4}$/, "Enter the 3 or 4 digit security code."),
 });
 
+/** Postgres 42703, or PostgREST's schema-cache equivalent. */
+function isMissingColumn(error: { code?: string; message?: string }) {
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    /column .* does not exist|could not find the .* column/i.test(
+      error.message ?? "",
+    )
+  );
+}
+
 function brandFor(cardNumber: string) {
   if (cardNumber.startsWith("4")) return "Visa";
   if (/^5[1-5]/.test(cardNumber)) return "Mastercard";
@@ -107,8 +118,11 @@ export async function placeOrder(
   const tax = taxCentsFor(Math.max(0, subtotal - discount));
   const total = Math.max(0, subtotal - discount) + shipping + tax;
 
-  // Resolve the destination: an existing address the caller owns, or a new one.
-  let shipTo: z.infer<typeof addressSchema> & { id?: string };
+  // Resolve where this is going. A typed address is NOT saved yet: the order
+  // snapshots its own copy, so writing to the address book before the order
+  // exists is what left a duplicate behind on every failed attempt.
+  let shipTo: z.infer<typeof addressSchema> & { id?: string; country?: string };
+  let addressToRemember: z.infer<typeof addressSchema> | null = null;
 
   if (parsed.data.addressId) {
     const { data: existing } = await supabase
@@ -120,15 +134,8 @@ export async function placeOrder(
     if (!existing) return { error: "That delivery address is no longer available." };
     shipTo = existing;
   } else if (parsed.data.address) {
-    const { data: created, error: addressError } = await supabase
-      .from("addresses")
-      .insert({ ...parsed.data.address, user_id: user.id })
-      .select()
-      .single();
-    if (addressError || !created) {
-      return { error: "We couldn't save that delivery address." };
-    }
-    shipTo = created;
+    shipTo = { ...parsed.data.address, country: "United States" };
+    addressToRemember = parsed.data.address;
   } else {
     return { error: "Choose a delivery address." };
   }
@@ -142,27 +149,46 @@ export async function placeOrder(
 
   const cardNumber = parsed.data.cardNumber;
 
-  const { data: order, error: orderError } = await supabase
+  const baseRow = {
+    user_id: user.id,
+    subtotal_cents: subtotal,
+    shipping_cents: shipping,
+    tax_cents: tax,
+    total_cents: total,
+    ship_to: shipTo,
+    payment_last4: cardNumber.slice(-4),
+    payment_brand: brandFor(cardNumber),
+    delivery_speed: speed,
+    eta_date: eta.toISOString().slice(0, 10),
+  };
+
+  let { data: order, error: orderError } = await supabase
     .from("orders")
-    .insert({
-      user_id: user.id,
-      subtotal_cents: subtotal,
-      shipping_cents: shipping,
-      tax_cents: tax,
-      discount_cents: discount,
-      coupon_code: couponCode,
-      total_cents: total,
-      ship_to: shipTo,
-      payment_last4: cardNumber.slice(-4),
-      payment_brand: brandFor(cardNumber),
-      delivery_speed: speed,
-      eta_date: eta.toISOString().slice(0, 10),
-    })
+    .insert({ ...baseRow, discount_cents: discount, coupon_code: couponCode })
     .select()
     .single();
 
+  // The voucher columns arrive with supabase/coupons.sql. A deployment that
+  // has not run it yet must still be able to take an order, so fall back to
+  // the columns that have always existed rather than failing the purchase.
+  if (orderError && isMissingColumn(orderError)) {
+    console.warn(
+      "orders: voucher columns absent, placing without discount. Run supabase/coupons.sql.",
+    );
+    ({ data: order, error: orderError } = await supabase
+      .from("orders")
+      .insert(baseRow)
+      .select()
+      .single());
+  }
+
   if (orderError || !order) {
-    return { error: "We couldn't place that order. Please try again." };
+    // Swallowing the cause here is what made this hard to diagnose once.
+    console.error("orders: insert failed", orderError);
+    return {
+      error:
+        "We couldn't place that order. Nothing has been charged — please try again.",
+    };
   }
 
   const { error: itemsError } = await supabase.from("order_items").insert(
@@ -181,6 +207,34 @@ export async function placeOrder(
     // Without a transaction an empty order is worse than none: roll it back.
     await supabase.from("orders").delete().eq("id", order.id);
     return { error: "We couldn't place that order. Please try again." };
+  }
+
+  // Now that the order exists, remember the address — but only if the book
+  // does not already hold it. Checking out three times from one address
+  // should not leave three copies of it.
+  if (addressToRemember) {
+    const { data: existing } = await supabase
+      .from("addresses")
+      .select("id")
+      .eq("user_id", user.id)
+      .ilike("line1", addressToRemember.line1)
+      .ilike("city", addressToRemember.city)
+      .ilike("postal_code", addressToRemember.postal_code)
+      .maybeSingle();
+
+    if (!existing) {
+      const { count } = await supabase
+        .from("addresses")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      await supabase.from("addresses").insert({
+        ...addressToRemember,
+        user_id: user.id,
+        country: "United States",
+        is_default: (count ?? 0) === 0,
+      });
+    }
   }
 
   // Keep anything saved for later; clear only what was bought.

@@ -158,10 +158,10 @@ export default async function OrderDetailPage({
                     : formatPrice(order.shipping_cents)
                 }
               />
-              {order.discount_cents > 0 && (
+              {(order.discount_cents ?? 0) > 0 && (
                 <div className="flex justify-between text-success">
                   <dt>Coupon {order.coupon_code}</dt>
-                  <dd>−{formatPrice(order.discount_cents)}</dd>
+                  <dd>−{formatPrice(order.discount_cents ?? 0)}</dd>
                 </div>
               )}
               <Row label="Tax" value={formatPrice(order.tax_cents)} />

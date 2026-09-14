@@ -80,8 +80,9 @@ export type Order = {
   subtotal_cents: number;
   shipping_cents: number;
   tax_cents: number;
-  discount_cents: number;
-  coupon_code: string | null;
+  /** Present once supabase/coupons.sql has been applied. */
+  discount_cents?: number;
+  coupon_code?: string | null;
   total_cents: number;
   ship_to: Address;
   payment_last4: string;
