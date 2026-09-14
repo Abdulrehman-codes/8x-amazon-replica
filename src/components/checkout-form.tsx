@@ -19,10 +19,12 @@ export function CheckoutForm({
   lines,
   addresses,
   defaultName,
+  extraDays = 0,
 }: {
   lines: CartLine[];
   addresses: Address[];
   defaultName: string;
+  extraDays?: number;
 }) {
   const [state, formAction] = useActionState<CheckoutState, FormData>(
     placeOrder,
@@ -42,7 +44,7 @@ export function CheckoutForm({
   const tax = taxCentsFor(subtotal);
   const total = subtotal + shipping + tax;
 
-  const slowest = Math.max(...lines.map((l) => l.product.ship_days));
+  const slowest = Math.max(...lines.map((l) => l.product.ship_days)) + extraDays;
   const eta = deliveryDate(slowest, speed);
 
   return (

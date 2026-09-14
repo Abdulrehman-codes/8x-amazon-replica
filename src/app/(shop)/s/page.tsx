@@ -8,13 +8,18 @@ import { SortSelect } from "@/components/sort-select";
 import { Pagination } from "@/components/pagination";
 import { searchProducts, getCategory, getDepartment, PAGE_SIZE } from "@/lib/queries";
 import { parseSearchParams, type RawSearchParams } from "@/lib/search-params";
+import { getLocation, transitDaysFor } from "@/lib/location";
 
 export const metadata: Metadata = { title: "Search results" };
 
 export default async function SearchPage({ searchParams }: PageProps<"/s">) {
   const raw = (await searchParams) as RawSearchParams;
   const params = parseSearchParams(raw);
-  const result = await searchProducts(params);
+  const [result, location] = await Promise.all([
+    searchProducts(params),
+    getLocation(),
+  ]);
+  const extraDays = transitDaysFor(location);
 
   const heading = await headingFor(params.q, params.category, params.department);
 
@@ -69,7 +74,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/s">) {
             <>
               <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(200px,1fr))]">
                 {result.items.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <ProductCard key={product.id} product={product} extraDays={extraDays} />
                 ))}
               </div>
               <Pagination

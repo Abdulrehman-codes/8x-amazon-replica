@@ -1,19 +1,22 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { MapPin, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { SearchBar } from "@/components/search-bar";
 import { AccountMenu } from "@/components/account-menu";
 import { NavDrawer } from "@/components/nav-drawer";
+import { LocationPicker } from "@/components/location-picker";
 import { getNav } from "@/lib/queries";
 import { getCartCount } from "@/lib/cart";
+import { getLocation } from "@/lib/location";
 import { getViewerName } from "@/lib/supabase/server";
 
 export async function SiteHeader() {
-  const [departments, cartCount, name] = await Promise.all([
+  const [departments, cartCount, name, location] = await Promise.all([
     getNav(),
     getCartCount(),
     getViewerName(),
+    getLocation(),
   ]);
 
   return (
@@ -23,18 +26,7 @@ export async function SiteHeader() {
         <div className="mx-auto flex max-w-[1500px] items-center gap-2 px-3 py-2">
           <Logo />
 
-          <Link
-            href="/s?department=grocery"
-            className="hidden items-center gap-1 rounded px-2 py-1.5 transition hover:bg-ink-hover lg:flex"
-          >
-            <MapPin size={18} className="mt-1.5 shrink-0" />
-            <span className="leading-tight">
-              <span className="block text-[11px] text-white/70">
-                Deliver to
-              </span>
-              <span className="block text-sm font-semibold">Seattle 98101</span>
-            </span>
-          </Link>
+          <LocationPicker location={location} />
 
           <div className="mx-1 min-w-0 flex-1">
             <Suspense

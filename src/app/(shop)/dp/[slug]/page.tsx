@@ -19,6 +19,7 @@ import {
   getCategory,
 } from "@/lib/queries";
 import { deliveryDate, formatDeliveryDate } from "@/lib/delivery";
+import { getLocation, transitDaysFor } from "@/lib/location";
 import { formatPrice } from "@/lib/utils";
 import type { Product } from "@/lib/types";
 
@@ -44,8 +45,12 @@ export default async function ProductPage({ params }: PageProps<"/dp/[slug]">) {
   // Only the product and its breadcrumb are awaited here. Resolving them
   // before the response commits is what lets a missing product answer 404
   // rather than a streamed 200; everything below the fold arrives after.
-  const category = await getCategory(product.category_slug);
-  const eta = deliveryDate(product.ship_days);
+  const [category, location] = await Promise.all([
+    getCategory(product.category_slug),
+    getLocation(),
+  ]);
+  const extraDays = transitDaysFor(location);
+  const eta = deliveryDate(product.ship_days + extraDays);
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5 px-3 py-4">
@@ -123,7 +128,7 @@ export default async function ProductPage({ params }: PageProps<"/dp/[slug]">) {
             <span className="font-semibold text-fg">
               {formatDeliveryDate(eta)}
             </span>{" "}
-            on orders over $35
+            to {location.city} on orders over $35
           </p>
 
           <p className="mt-2 text-sm">

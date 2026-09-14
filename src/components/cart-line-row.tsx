@@ -20,14 +20,16 @@ import type { CartLine } from "@/lib/types";
 export function CartLineRow({
   line,
   saved = false,
+  extraDays = 0,
 }: {
   line: CartLine;
   saved?: boolean;
+  extraDays?: number;
 }) {
   const [pending, startTransition] = useTransition();
   const { product } = line;
   const limit = Math.min(MAX_QTY, Math.max(1, product.stock));
-  const eta = deliveryDate(product.ship_days);
+  const eta = deliveryDate(product.ship_days + extraDays);
 
   function run(action: () => Promise<void>) {
     startTransition(() => {

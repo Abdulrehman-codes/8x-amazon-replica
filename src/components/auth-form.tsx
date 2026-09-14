@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import {
   signInAction,
   signUpAction,
@@ -14,12 +14,17 @@ import {
 export function AuthForm({
   mode,
   next,
+  initialError,
 }: {
   mode: "signin" | "signup";
   next: string;
+  /** Surfaced by the confirmation-link handler when a link fails. */
+  initialError?: string;
 }) {
   const action = mode === "signin" ? signInAction : signUpAction;
-  const [state, formAction] = useActionState<AuthState, FormData>(action, {});
+  const [state, formAction] = useActionState<AuthState, FormData>(action, {
+    error: initialError,
+  });
 
   return (
     <div className="mx-auto w-full max-w-sm">
@@ -60,6 +65,16 @@ export function AuthForm({
             hint={mode === "signup" ? "At least 8 characters" : undefined}
             required
           />
+
+          {state.notice && (
+            <p
+              role="status"
+              className="flex items-start gap-2 rounded border border-success/30 bg-success/5 px-3 py-2 text-sm text-success"
+            >
+              <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+              {state.notice}
+            </p>
+          )}
 
           {state.error && (
             <p

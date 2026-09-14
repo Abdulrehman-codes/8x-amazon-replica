@@ -11,12 +11,15 @@ export function ProductCard({
   product,
   className,
   showDelivery = true,
+  extraDays = 0,
 }: {
   product: Product;
   className?: string;
   showDelivery?: boolean;
+  /** Transit added by the shopper's chosen delivery location. */
+  extraDays?: number;
 }) {
-  const eta = deliveryDate(product.ship_days);
+  const eta = deliveryDate(product.ship_days + extraDays);
 
   return (
     <article

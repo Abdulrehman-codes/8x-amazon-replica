@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../supabase/server";
 import { getCart } from "../cart";
+import { getLocation, transitDaysFor } from "../location";
 import { CART_COOKIE } from "../cart-cookie";
 import {
   deliveryDate,
@@ -117,7 +118,10 @@ export async function placeOrder(
   }
 
   // The order arrives when its slowest line arrives.
-  const slowest = Math.max(...cart.active.map((line) => line.product.ship_days));
+  const location = await getLocation();
+  const slowest =
+    Math.max(...cart.active.map((line) => line.product.ship_days)) +
+    transitDaysFor(location);
   const eta = deliveryDate(slowest, speed);
 
   const cardNumber = parsed.data.cardNumber;

@@ -4,6 +4,7 @@ import { ShoppingCart, Check } from "lucide-react";
 import { CartLineRow } from "@/components/cart-line-row";
 import { ProductRail } from "@/components/product-rail";
 import { getCart } from "@/lib/cart";
+import { getLocation, transitDaysFor } from "@/lib/location";
 import { getHomeData } from "@/lib/queries";
 import { FREE_SHIPPING_THRESHOLD_CENTS } from "@/lib/delivery";
 import { formatPrice } from "@/lib/utils";
@@ -11,7 +12,8 @@ import { formatPrice } from "@/lib/utils";
 export const metadata: Metadata = { title: "Shopping cart" };
 
 export default async function CartPage() {
-  const cart = await getCart();
+  const [cart, location] = await Promise.all([getCart(), getLocation()]);
+  const extraDays = transitDaysFor(location);
 
   if (cart.active.length === 0 && cart.saved.length === 0) {
     return <EmptyCart />;
@@ -36,7 +38,7 @@ export default async function CartPage() {
           ) : (
             <ul>
               {cart.active.map((line) => (
-                <CartLineRow key={line.id} line={line} />
+                <CartLineRow key={line.id} line={line} extraDays={extraDays} />
               ))}
             </ul>
           )}

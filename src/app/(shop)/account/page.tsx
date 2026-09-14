@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Package, MapPin, ShoppingCart, LogOut } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signOutAction } from "@/lib/actions/auth";
+import { ProfileForm } from "@/components/profile-form";
 import type { Address } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Your account" };
@@ -52,18 +53,34 @@ export default async function AccountPage() {
           body="Items you've added, and anything saved for later"
         />
         <Card
-          href="/s?sort=rating"
+          href="/account/addresses"
           icon={<MapPin size={22} />}
-          title="Keep shopping"
-          body="Browse the highest rated products this week"
+          title="Your addresses"
+          body="Add, edit or remove delivery addresses"
         />
       </div>
 
       <section className="mt-6 rounded-card bg-surface p-5 shadow-sm">
-        <h2 className="font-bold">Your addresses</h2>
+        <h2 className="font-bold">Your details</h2>
+        <p className="mb-3 mt-1 text-sm text-fg-muted">
+          This is the name shown in the header and used on new orders.
+        </p>
+        <ProfileForm fullName={name ?? ""} />
+      </section>
+
+      <section className="mt-4 rounded-card bg-surface p-5 shadow-sm">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-bold">Your addresses</h2>
+          <Link
+            href="/account/addresses"
+            className="text-sm text-link hover:text-link-hover"
+          >
+            Manage addresses
+          </Link>
+        </div>
         {addresses?.length ? (
           <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-            {(addresses as Address[]).map((address) => (
+            {(addresses as Address[]).slice(0, 2).map((address) => (
               <li
                 key={address.id}
                 className="rounded border border-border p-4 text-sm leading-relaxed"
@@ -74,8 +91,6 @@ export default async function AccountPage() {
                   {address.line2 ? `, ${address.line2}` : ""}
                   <br />
                   {address.city}, {address.state} {address.postal_code}
-                  <br />
-                  {address.country}
                 </span>
                 {address.is_default && (
                   <span className="mt-2 inline-block rounded bg-accent-soft px-2 py-0.5 text-xs font-semibold text-fg">
@@ -87,7 +102,11 @@ export default async function AccountPage() {
           </ul>
         ) : (
           <p className="mt-2 text-sm text-fg-muted">
-            No saved addresses yet. You can add one during checkout.
+            No saved addresses yet.{" "}
+            <Link href="/account/addresses" className="text-link hover:text-link-hover">
+              Add one
+            </Link>{" "}
+            so checkout is one step shorter.
           </p>
         )}
       </section>
