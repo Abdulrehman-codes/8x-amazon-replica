@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ShoppingCart, Check, BadgePercent } from "lucide-react";
+import { ShoppingCart, Check, BadgePercent, Tag } from "lucide-react";
 import { CartLineRow } from "@/components/cart-line-row";
 import { ProductRail } from "@/components/product-rail";
 import { getCart } from "@/lib/cart";
 import { getLocation, transitDaysFor } from "@/lib/location";
+import { getAppliedCoupon } from "@/lib/coupons";
 import { getHomeData } from "@/lib/queries";
 import { FREE_SHIPPING_THRESHOLD_CENTS } from "@/lib/delivery";
 import { formatPrice } from "@/lib/utils";
@@ -14,6 +15,7 @@ export const metadata: Metadata = { title: "Shopping cart" };
 export default async function CartPage() {
   const [cart, location] = await Promise.all([getCart(), getLocation()]);
   const extraDays = transitDaysFor(location);
+  const couponOutcome = await getAppliedCoupon(cart.subtotalCents);
 
   if (cart.active.length === 0 && cart.saved.length === 0) {
     return <EmptyCart />;
@@ -72,13 +74,25 @@ export default async function CartPage() {
                 </span>
               </p>
             ) : (
-              <p className="text-sm text-fg-muted">
-                Add{" "}
-                <span className="font-semibold text-fg">
-                  {formatPrice(remaining)}
-                </span>{" "}
-                of eligible items to qualify for FREE delivery.
-              </p>
+              <div>
+                <p className="text-sm text-fg-muted">
+                  Add{" "}
+                  <span className="font-semibold text-fg">
+                    {formatPrice(remaining)}
+                  </span>{" "}
+                  more for <span className="font-semibold">FREE delivery</span>.
+                </p>
+                {/* Progress, because a number alone does not show how close
+                    the basket already is. */}
+                <span className="mt-2 block h-2 overflow-hidden rounded-full bg-canvas">
+                  <span
+                    className="block h-full rounded-full bg-[linear-gradient(90deg,#f5a524,#067d62)] transition-[width] duration-500"
+                    style={{
+                      width: `${Math.min(100, Math.round((cart.subtotalCents / FREE_SHIPPING_THRESHOLD_CENTS) * 100))}%`,
+                    }}
+                  />
+                </span>
+              </div>
             )}
 
             <p className="mt-3 text-lg">
@@ -87,6 +101,16 @@ export default async function CartPage() {
                 {formatPrice(cart.subtotalCents)}
               </span>
             </p>
+
+            {couponOutcome?.ok && (
+              <p className="mt-1 flex items-center gap-1.5 rounded bg-accent-soft px-2 py-1 text-sm font-semibold text-fg">
+                <Tag size={14} className="text-accent" />
+                {couponOutcome.coupon.code} applied
+                {couponOutcome.freeShipping
+                  ? " — free delivery"
+                  : ` — ${formatPrice(couponOutcome.discountCents)} off at checkout`}
+              </p>
+            )}
 
             {savedCents > 0 && (
               <p className="mt-1 flex items-center gap-1.5 rounded bg-success/10 px-2 py-1 text-sm font-semibold text-success">

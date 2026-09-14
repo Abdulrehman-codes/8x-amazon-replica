@@ -81,6 +81,12 @@ export async function SiteHeader() {
           >
             Today&apos;s Deals
           </Link>
+          <Link
+            href="/coupons"
+            className="whitespace-nowrap rounded px-2.5 py-1.5 text-sm text-white/90 transition hover:bg-ink-hover"
+          >
+            Coupons
+          </Link>
         </div>
       </div>
 

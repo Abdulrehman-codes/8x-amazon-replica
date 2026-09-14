@@ -13,6 +13,8 @@ import {
   taxCentsFor,
 } from "@/lib/delivery";
 import { formatPrice, cn } from "@/lib/utils";
+import { CouponBox } from "@/components/coupon-box";
+import { evaluateCoupon, type Coupon } from "@/lib/coupon-math";
 import type { Address, CartLine, DeliverySpeed } from "@/lib/types";
 
 export function CheckoutForm({
@@ -20,11 +22,14 @@ export function CheckoutForm({
   addresses,
   defaultName,
   extraDays = 0,
+  coupon = null,
 }: {
   lines: CartLine[];
   addresses: Address[];
   defaultName: string;
   extraDays?: number;
+  /** The voucher currently held, priced live as the delivery speed changes. */
+  coupon?: Coupon | null;
 }) {
   const [state, formAction] = useActionState<CheckoutState, FormData>(
     placeOrder,
@@ -40,9 +45,18 @@ export function CheckoutForm({
     () => lines.reduce((sum, l) => sum + l.product.price_cents * l.qty, 0),
     [lines],
   );
-  const shipping = shippingCentsFor(speed, subtotal);
-  const tax = taxCentsFor(subtotal);
-  const total = subtotal + shipping + tax;
+  // Priced with the same function the server uses when the order is placed,
+  // so the summary and the charge cannot drift apart.
+  const outcome = useMemo(
+    () => (coupon ? evaluateCoupon(coupon, subtotal, speed) : null),
+    [coupon, subtotal, speed],
+  );
+  const discount = outcome?.ok ? outcome.discountCents : 0;
+  const freeShipping = Boolean(outcome?.ok && outcome.freeShipping);
+
+  const shipping = freeShipping ? 0 : shippingCentsFor(speed, subtotal);
+  const tax = taxCentsFor(Math.max(0, subtotal - discount));
+  const total = Math.max(0, subtotal - discount) + shipping + tax;
 
   const slowest = Math.max(...lines.map((l) => l.product.ship_days)) + extraDays;
   const eta = deliveryDate(slowest, speed);
@@ -218,9 +232,23 @@ export function CheckoutForm({
 
           <hr className="my-3 border-border" />
 
+          <div className="mb-3">
+            <CouponBox
+              appliedCode={outcome?.ok ? outcome.coupon.code : null}
+              discountCents={discount}
+              freeShipping={freeShipping}
+            />
+          </div>
+
           <h2 className="mb-2 font-bold">Order summary</h2>
           <dl className="space-y-1.5 text-sm">
             <Line label={`Items (${lines.reduce((s, l) => s + l.qty, 0)})`} value={formatPrice(subtotal)} />
+            {discount > 0 && outcome?.ok && (
+              <div className="flex justify-between text-success">
+                <dt>Coupon {outcome.coupon.code}</dt>
+                <dd>−{formatPrice(discount)}</dd>
+              </div>
+            )}
             <Line
               label="Delivery"
               value={shipping === 0 ? "FREE" : formatPrice(shipping)}

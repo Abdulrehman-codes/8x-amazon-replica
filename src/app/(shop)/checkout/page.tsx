@@ -4,6 +4,7 @@ import { CheckoutForm } from "@/components/checkout-form";
 import { signOutAction } from "@/lib/actions/auth";
 import { getCart } from "@/lib/cart";
 import { getLocation, transitDaysFor } from "@/lib/location";
+import { getAppliedCode, getCoupon } from "@/lib/coupons";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Address } from "@/lib/types";
 
@@ -20,6 +21,8 @@ export default async function CheckoutPage() {
 
   const cart = await getCart();
   const location = await getLocation();
+  const heldCode = await getAppliedCode();
+  const coupon = heldCode ? await getCoupon(heldCode) : null;
   if (cart.active.length === 0) redirect("/cart");
 
   const { data: addresses } = await supabase
@@ -56,6 +59,7 @@ export default async function CheckoutPage() {
         addresses={(addresses ?? []) as Address[]}
         defaultName={defaultName}
         extraDays={transitDaysFor(location)}
+        coupon={coupon}
       />
     </div>
   );

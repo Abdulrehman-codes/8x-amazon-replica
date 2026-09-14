@@ -7,6 +7,8 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "../supabase/server";
 import { getCart } from "../cart";
 import { getLocation, transitDaysFor } from "../location";
+import { getAppliedCode, getCoupon } from "../coupons";
+import { evaluateCoupon } from "../coupon-math";
 import { CART_COOKIE } from "../cart-cookie";
 import {
   deliveryDate,
@@ -87,9 +89,23 @@ export async function placeOrder(
     0,
   );
   const speed = parsed.data.speed as DeliverySpeed;
-  const shipping = shippingCentsFor(speed, subtotal);
-  const tax = taxCentsFor(subtotal);
-  const total = subtotal + shipping + tax;
+
+  // The coupon is priced here from the stored code, never from the form. A
+  // code that has since expired or no longer clears its minimum simply stops
+  // applying rather than failing the order.
+  const code = await getAppliedCode();
+  const outcome = code
+    ? evaluateCoupon(await getCoupon(code), subtotal, speed)
+    : null;
+  const discount = outcome?.ok ? outcome.discountCents : 0;
+  const couponCode = outcome?.ok ? outcome.coupon.code : null;
+
+  const baseShipping = shippingCentsFor(speed, subtotal);
+  const shipping = outcome?.ok && outcome.freeShipping ? 0 : baseShipping;
+
+  // Tax follows the discounted subtotal, which is how a real basket behaves.
+  const tax = taxCentsFor(Math.max(0, subtotal - discount));
+  const total = Math.max(0, subtotal - discount) + shipping + tax;
 
   // Resolve the destination: an existing address the caller owns, or a new one.
   let shipTo: z.infer<typeof addressSchema> & { id?: string };
@@ -133,6 +149,8 @@ export async function placeOrder(
       subtotal_cents: subtotal,
       shipping_cents: shipping,
       tax_cents: tax,
+      discount_cents: discount,
+      coupon_code: couponCode,
       total_cents: total,
       ship_to: shipTo,
       payment_last4: cardNumber.slice(-4),
