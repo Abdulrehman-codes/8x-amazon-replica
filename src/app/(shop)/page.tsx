@@ -1,37 +1,57 @@
-import Image from "next/image";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { HeroCarousel } from "@/components/hero-carousel";
 import { ProductRail } from "@/components/product-rail";
 import { LightningDeals } from "@/components/lightning-deals";
-import { getHomeData, type DepartmentWithCategories } from "@/lib/queries";
+import { ShelfCard } from "@/components/shelf-card";
+import { EndlessShelves } from "@/components/endless-shelves";
+import { getHomeData, getShelves } from "@/lib/queries";
+import { HERO_SLIDES } from "@/lib/shelves";
+
+/** Shelves rendered on the server before the scroll takes over. */
+const FIRST_BATCH = 4;
+const SECOND_BATCH = 8;
 
 export default async function HomePage() {
-  const { nav, deals, topRated, underTwentyFive } = await getHomeData();
+  const [{ deals, topRated, underTwentyFive }, shelves] = await Promise.all([
+    getHomeData(),
+    getShelves(),
+  ]);
+
+  // One representative image per hero slide, pulled from that slide's category.
+  const heroImages: Record<string, string> = {};
+  for (const slide of HERO_SLIDES) {
+    const shelf = shelves.find((s) => s.id === `cat-${slide.categorySlug}`);
+    const tile = shelf?.tiles[0];
+    if (tile) heroImages[slide.categorySlug] = tile.image;
+  }
+
+  const above = shelves.slice(0, FIRST_BATCH);
+  const rest = shelves.slice(FIRST_BATCH, FIRST_BATCH + SECOND_BATCH);
 
   return (
     <>
-      <Hero />
+      <HeroCarousel images={heroImages} />
 
-      <div className="mx-auto max-w-[1500px] space-y-5 px-3 pb-10">
-        {/* The card grid rides up over the hero, the way the original does. */}
+      <div className="mx-auto max-w-[1500px] space-y-4 px-3 pb-6">
+        {/* The first row rides up over the hero, the way the original does. */}
         <div className="stagger-children -mt-24 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {nav.slice(0, 4).map((dept) => (
-            <DepartmentCard key={dept.slug} department={dept} />
+          {above.map((shelf) => (
+            <ShelfCard key={shelf.id} shelf={shelf} />
           ))}
         </div>
 
         <LightningDeals products={deals} />
 
-        <div className="stagger-children grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {nav.slice(4, 8).map((dept) => (
-            <DepartmentCard key={dept.slug} department={dept} />
-          ))}
-        </div>
-
         <ProductRail
           title="Highest rated this week"
           href="/s?sort=rating"
           products={topRated}
+        />
+
+        {/* Everything below here keeps arriving as the visitor scrolls. */}
+        <EndlessShelves
+          initial={rest}
+          initialOffset={FIRST_BATCH + rest.length}
+          initialDone={FIRST_BATCH + rest.length >= shelves.length}
         />
 
         <ProductRail
@@ -41,104 +61,5 @@ export default async function HomePage() {
         />
       </div>
     </>
-  );
-}
-
-function Hero() {
-  return (
-    <section className="relative overflow-hidden bg-ink">
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(120%_120%_at_15%_0%,#24405c_0%,#0d1520_60%)]"
-      />
-      <div className="relative mx-auto max-w-[1500px] px-6 pb-36 pt-14 sm:pt-20">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">
-          Free delivery over $35
-        </p>
-        <h1 className="mt-3 max-w-2xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
-          Everything you need, and it arrives when we say it will.
-        </h1>
-        <p className="mt-4 max-w-xl text-base text-white/70">
-          Thousands of products across nine departments, each with a real
-          delivery date — quoted before you buy, not after.
-        </p>
-        <div className="mt-7 flex flex-wrap gap-3">
-          <Link
-            href="/s?deals=1"
-            className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-accent-hover"
-          >
-            Shop today&apos;s deals
-            <ArrowRight size={16} />
-          </Link>
-          <Link
-            href="/s?sort=rating"
-            className="inline-flex items-center gap-2 rounded-md border border-white/25 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
-          >
-            Browse top rated
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DepartmentCard({
-  department,
-}: {
-  department: DepartmentWithCategories;
-}) {
-  const tiles = department.categories.slice(0, 4);
-
-  return (
-    <article className="flex flex-col rounded-card bg-surface p-4 shadow-sm">
-      <h2 className="mb-3 text-lg font-bold leading-tight">
-        {department.name}
-      </h2>
-
-      {tiles.length >= 4 ? (
-        <div className="grid grid-cols-2 gap-3">
-          {tiles.map((cat) => (
-            <Link key={cat.slug} href={`/s?category=${cat.slug}`} className="group">
-              <div className="relative aspect-square overflow-hidden rounded bg-canvas">
-                {cat.image_url && (
-                  <Image
-                    src={cat.image_url}
-                    alt=""
-                    fill
-                    sizes="150px"
-                    className="object-contain p-2 transition-transform duration-300 group-hover:scale-105"
-                  />
-                )}
-              </div>
-              <p className="mt-1 truncate text-xs text-fg-muted group-hover:text-link-hover">
-                {cat.name}
-              </p>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <Link
-          href={`/s?department=${department.slug}`}
-          className="group relative block aspect-[4/3] overflow-hidden rounded bg-canvas"
-        >
-          {tiles[0]?.image_url && (
-            <Image
-              src={tiles[0].image_url}
-              alt=""
-              fill
-              sizes="320px"
-              className="object-contain p-4 transition-transform duration-300 group-hover:scale-105"
-            />
-          )}
-        </Link>
-      )}
-
-      <Link
-        href={`/s?department=${department.slug}`}
-        className="mt-auto pt-3 text-sm text-link hover:text-link-hover"
-      >
-        Shop {department.name.toLowerCase()}
-      </Link>
-    </article>
   );
 }

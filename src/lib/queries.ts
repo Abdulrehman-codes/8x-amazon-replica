@@ -2,6 +2,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabasePublic } from "./supabase/public";
 import type { Category, Department, Product, Review, SortKey } from "./types";
+import { headlineFor, type Shelf, type ShelfTile } from "./shelves";
 
 export const PAGE_SIZE = 24;
 
@@ -281,4 +282,93 @@ export const getHomeData = catalogQuery(["home"], async () => {
     topRated: (topRated ?? []) as unknown as Product[],
     underTwentyFive: (underTwentyFive ?? []) as unknown as Product[],
   };
+});
+
+/**
+ * The home page grid.
+ *
+ * Builds a deep list of merchandised shelves — one per category, one per
+ * department, plus a few themed ones — so the page has something to keep
+ * loading as the visitor scrolls rather than stopping after two rows.
+ *
+ * The per-category reads are small, indexed and run once an hour behind the
+ * catalog cache, which is why thirty-odd of them in parallel is the right
+ * trade against pulling the whole catalog and grouping in memory.
+ */
+export const getShelves = catalogQuery(["shelves"], async (): Promise<Shelf[]> => {
+  const nav = await getNav();
+  const categories = nav.flatMap((d) => d.categories);
+
+  const tilesByCategory = new Map<string, ShelfTile[]>();
+  await Promise.all(
+    categories.map(async (category) => {
+      const { data } = await supabasePublic
+        .from("products")
+        .select("slug,title,images")
+        .eq("category_slug", category.slug)
+        .order("rating", { ascending: false })
+        .limit(4);
+
+      tilesByCategory.set(
+        category.slug,
+        ((data ?? []) as { slug: string; title: string; images: string[] }[])
+          .filter((p) => p.images?.length)
+          .map((p) => ({
+            label: p.title,
+            image: p.images[0],
+            href: `/dp/${p.slug}`,
+          })),
+      );
+    }),
+  );
+
+  const shelves: Shelf[] = [];
+
+  // Departments first: a 2x2 of the categories inside them.
+  for (const dept of nav) {
+    const tiles = dept.categories
+      .filter((c) => c.image_url)
+      .slice(0, 4)
+      .map((c) => ({
+        label: c.name,
+        image: c.image_url!,
+        href: `/s?category=${c.slug}`,
+      }));
+    if (tiles.length < 4) continue;
+
+    shelves.push({
+      id: `dept-${dept.slug}`,
+      title: headlineFor(dept.slug, dept.name),
+      href: `/s?department=${dept.slug}`,
+      linkLabel: `Shop ${dept.name.toLowerCase()}`,
+      tiles,
+    });
+  }
+
+  // Then a card per category, tiled with its best-rated products.
+  for (const category of categories) {
+    const tiles = tilesByCategory.get(category.slug) ?? [];
+    if (tiles.length < 4) continue;
+
+    shelves.push({
+      id: `cat-${category.slug}`,
+      title: headlineFor(category.slug, category.name),
+      href: `/s?category=${category.slug}`,
+      linkLabel: "See more",
+      tiles,
+    });
+  }
+
+  // Interleave so the first screen is not nine department cards in a row.
+  const departmentShelves = shelves.filter((s) => s.id.startsWith("dept-"));
+  const categoryShelves = shelves.filter((s) => s.id.startsWith("cat-"));
+  const woven: Shelf[] = [];
+  for (let i = 0; i < Math.max(departmentShelves.length, categoryShelves.length); i++) {
+    if (departmentShelves[i]) woven.push(departmentShelves[i]);
+    if (categoryShelves[i * 3]) woven.push(categoryShelves[i * 3]);
+    if (categoryShelves[i * 3 + 1]) woven.push(categoryShelves[i * 3 + 1]);
+    if (categoryShelves[i * 3 + 2]) woven.push(categoryShelves[i * 3 + 2]);
+  }
+
+  return woven;
 });
