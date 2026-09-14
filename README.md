@@ -90,9 +90,10 @@ npm run seed                   # catalog, reviews, demo shopper
 npm run dev
 ```
 
-Before the first seed, run `supabase/schema.sql` once in the Supabase SQL
-editor, and turn **Confirm email** off under Authentication → Providers →
-Email so sign-up completes in one step.
+Before the first seed, run `supabase/schema.sql` and then
+`supabase/search-function.sql` in the Supabase SQL editor, and turn **Confirm
+email** off under Authentication → Providers → Email so sign-up completes in
+one step. Both files are idempotent.
 
 ### Environment
 
@@ -121,4 +122,6 @@ one file per session.
 
 Bazaar is an independent portfolio exercise and is not affiliated with any
 retailer. Product data and imagery come from the public
-[DummyJSON](https://dummyjson.com) catalog. No real payments are processed.
+[DummyJSON](https://dummyjson.com) catalog and from
+[Open Library](https://openlibrary.org), whose cover art is served by the
+Internet Archive. No real payments are processed.
