@@ -1,137 +1,209 @@
 # Bazaar
 
-A rebuild of a large online storefront — the shopping path from landing page
-to placed order, on its own brand and a calmer surface.
+**An everything store, rebuilt from scratch.** Same information architecture as
+the original. Considerably less shouting.
 
-**Live:** _(deployed link)_ · **Demo account:** one click from the account
-menu — `demo@bazaar.shop`, already carrying a saved address and two orders.
+🔗 **[8x-amazon-replica.vercel.app](https://8x-amazon-replica.vercel.app)**
+🔑 **Demo shopper:** one click from the account menu — no sign-up, lands on a
+real order history.
 
 ---
 
-## What it does
+## The short version
 
-| Flow | Route | Notes |
+Someone said "rebuild Amazon." So: 2,828 real products across nine
+departments, faceted search that answers in ~200ms at any page depth, a cart
+you can fill without an account, a checkout that recomputes every cent on the
+server, vouchers, live delivery dates that change when you change where you
+live, and confetti when you finally buy something.
+
+It is not a screenshot. Every number on the page came out of Postgres.
+
+## Take the tour (about two minutes)
+
+1. **Land on the home page.** Watch the hero rotate. Scroll — it keeps loading
+   shelves, because a storefront that ends after two rows isn't a storefront.
+2. **Hit a lightning deal.** The countdown is real, the "% claimed" bar moves
+   with it, and the saving is stated in money rather than left as homework.
+3. **Search `agatha`.** 78 results, because the catalog genuinely contains
+   Agatha Christie. Filter by price on the left — every filter is a URL you
+   can paste to someone.
+4. **Open a product and hit Add to cart.** The image flies into the basket.
+   It's a small thing. Small things are the job.
+5. **Go to `/coupons`, clip `BOOKWORM`, then check out.** The discount appears
+   in the summary *before* you commit to anything.
+6. **Place the order.** Confetti. Then a tracking strip that advances as the
+   delivery date approaches — not a static picture of a progress bar.
+
+## What it's built with
+
+| Layer | Choice | Why |
 | --- | --- | --- |
-| Browse | `/` | Department cards, deal rail, top-rated and under-$25 rails |
-| Search | `/s` | Postgres full-text with substring fallback, faceted filters, sorting, paging |
-| Product | `/dp/[slug]` | Magnifier gallery, buy box with a dated delivery promise, rating histogram, bundle |
-| Cart | `/cart` | Quantity, delete, save for later, free-delivery threshold |
-| Auth | `/signin`, `/signup` | Email + password, plus one-click demo sign-in |
-| Checkout | `/checkout` | Address, delivery speed, payment, order summary — one page |
-| Orders | `/orders`, `/orders/[id]` | History and a tracking strip that advances with real elapsed time |
+| Framework | **Next.js 16** (App Router, Turbopack, RSC) | Server components mean the product grid needs no client-side fetching layer |
+| Language | **TypeScript** | 2,800 products and money in cents; guessing is not a strategy |
+| Styling | **Tailwind v4** | One `@theme` block holds the entire palette |
+| UI primitives | **Radix** | Dialogs and dropdowns that are accessible without me relitigating focus traps |
+| Database | **Supabase** (Postgres + Auth) | Row-level security doing real work, not decoration |
+| Search | **A Postgres function** | Filtering, faceting, sorting and paging in one round trip |
+| Hosting | **Vercel** | Push to `main`, live in about fifteen seconds |
+| Icons / motion | **lucide-react**, CSS keyframes, `canvas-confetti` | No animation library; the CSS was enough |
 
-## Decisions worth naming
+## The catalog is real
 
-**The cart is a cookie, not a table.** A signed-out visitor can fill a cart and
-is only asked to authenticate at checkout. That removes an account wall from
-the top of the funnel and a whole table's worth of RLS surface.
+| Source | Gives us | Why it won |
+| --- | --- | --- |
+| [DummyJSON](https://dummyjson.com) | 194 products, 8 departments | Real photography, brands, stock, shipping terms |
+| [Open Library](https://openlibrary.org) | 2,634 books, 10 subjects | Real titles, real authors, real cover art, 100 per request |
 
-**Totals are recomputed on the server.** `placeOrder` reads catalog prices and
-derives subtotal, shipping and tax itself. Anything the client submits about
-money is ignored.
+**2,828 products · 8,407 reviews · 34 categories · 35 home shelves · 5 vouchers**
 
-**Orders snapshot what they shipped.** The address and every line item are
-copied onto the order. Editing an address or repricing a product later cannot
-rewrite the history of an order already placed.
+Open Food Facts auditioned for a grocery department and didn't get the part:
+it caps at 24 records a request and starts serving HTML error pages under
+light load. Not something to build a repeatable seed on.
+
+Open Library publishes bibliographic data, not commerce data, so book prices
+and stock are derived deterministically from the title — re-seed and you get a
+byte-identical catalog.
+
+## Decisions I'd defend in a code review
+
+**The cart is a cookie, not a table.** A signed-out visitor can fill a basket
+and is only asked to authenticate at checkout. That deletes an account wall
+from the top of the funnel and a whole table's worth of RLS surface.
+
+**Every total is recomputed on the server.** `placeOrder` reads catalog prices
+and derives subtotal, discount, shipping and tax itself. Anything the client
+says about money is ignored on principle.
+
+**Coupon pricing exists exactly once.** `lib/coupon-math.ts` holds no cookies
+and no database access, so the checkout summary prices a voucher in the browser
+as you switch delivery speed while the server prices it identically when you
+buy. What you're shown and what you're charged *cannot* disagree.
+
+**Orders snapshot what they shipped.** Address and line items are copied onto
+the order. Editing an address or repricing a product can't rewrite history.
 
 **Delivery dates are derived, not decorative.** Each product carries a handling
-time parsed from its shipping terms. The buy box counts business days forward
-from that, the order takes the slowest line in the basket, and the tracking
-strip interpolates status from elapsed time against the estimate.
+time parsed from its shipping terms. The buy box counts business days forward,
+the order takes the slowest line in the basket, your chosen location adds
+transit, and the tracking strip interpolates from elapsed time.
 
 **Filters are links.** Every filtered view is a real URL — shareable,
-bookmarkable, back-button-correct, and functional with JavaScript disabled.
+bookmarkable, back-button-correct, and fully functional with JavaScript off.
 
 **Facets are counted before the narrowing filters apply**, so the sidebar keeps
-offering the options a shopper can still move to instead of collapsing to
-whatever is already selected.
+offering options you can still move to instead of collapsing to what you have
+already picked.
 
-**The catalog is cached; the nav is not.** Product queries are expensive and
-change only when the seed runs, so they persist across requests behind a
-`catalog` tag. The nav is two small indexed reads and is the most visible thing
-on the page, so it is deduped per render and never cached beyond it — a
-department added by a re-seed shows up immediately. Because a hosted data cache
-outlives a deployment, `npm run seed` finishes by calling `/api/revalidate` to
-purge the tagged product data.
+## Things that broke, and what they cost
 
-**Search runs entirely in Postgres.** `search_catalog` does filtering, faceting,
-sorting and paging in one round trip and returns a single page plus its facet
-counts. An earlier version pulled the whole match set and counted facets in
-JavaScript, which was fine at 194 products and wrong at 2,800 — page 40 of a
-2,600-result department now costs the same as page 1.
+Building fast means breaking things. Here are the good ones.
 
-## What was deliberately left out
+**The deal that had always ended.** Lightning deal windows were anchored to
+midnight UTC, so once a product's hour passed it read *"Deal ended"* for the
+rest of the day. Record a demo after lunch and the flagship feature looks
+dead. Deals now end at the *next* occurrence of their time.
 
-Third-party sellers and seller dashboards, real payment processing, returns and
-refunds, streaming and subscription services, wishlists and registries, product
-Q&A, customer-written reviews, coupons. All of them are visible on the original;
-none is on the path from landing to placed order.
+**The coupon that did nothing.** The voucher box has its own `<form>`, and I
+rendered it inside the checkout `<form>`. HTML forbids nested forms, so the
+browser quietly ate it — "Apply" became a second submit button and full price
+got charged. There was a comment in that very file warning about exactly this.
 
-## The catalog
+**The checkout that depended on a migration.** An order insert started writing
+two columns that only exist after running one SQL file. Every checkout failed,
+behind a friendly *"we couldn't place that order."* Taking an order should
+never depend on a migration having been applied; it now falls back.
 
-2,800+ products across 9 departments, from two live sources:
+**Five addresses, one street.** Same root cause — the address was saved
+*before* the order insert, so every failed attempt left a copy behind. Now the
+order is written first, and the address book is only touched if it doesn't
+already hold that address.
 
-| Source | Contributes | Why |
-| --- | --- | --- |
-| [DummyJSON](https://dummyjson.com) | 194 products across 8 departments | Real product photography, brands, stock and shipping terms |
-| [Open Library](https://openlibrary.org) | 2,600+ books across 10 subjects | Real titles, authors and cover art, 100 records a request |
+**262KB of stars.** The rating component drew ten lucide icons, the home page
+showed 42 ratings, and the same SVG path got inlined 420 times — half the
+document. One `<symbol>` and a `<use>` later: 46KB.
 
-Open Food Facts was evaluated for a large grocery department and rejected: it
-serves at most 24 records a request and begins returning HTML error pages under
-light use, which is no basis for a repeatable seed.
+**A thousand image URLs.** Next emits a full `srcset` per image; the defaults
+gave eight device widths by eight image widths across ~75 tiles. Narrowing
+both lists took 50KB off the page.
 
-Open Library publishes bibliographic data, not commerce data, so price, stock
-and delivery windows for books are derived deterministically from the title —
-a re-seed produces a byte-identical catalog.
+The pattern in most of these: an error replaced by a friendly message is a bug
+that hides. Several were invisible until the real error got logged.
 
-## Stack
+## What I deliberately did not build
 
-Next.js 16 (App Router, Turbopack) · TypeScript · Tailwind v4 · Supabase
-(Postgres + Auth) · Vercel.
+Third-party sellers and seller dashboards · real payment processing · returns
+and refunds · Prime Video / Music / subscriptions · wishlists and registries ·
+product Q&A · customer-written reviews · a language and currency switcher.
 
-## Running it
+All of them are on the original. None of them is on the path from landing on
+the site to placing an order — and that path is the product.
+
+## Run it yourself
 
 ```bash
+git clone https://github.com/Abdulrehman-codes/8x-amazon-replica
+cd 8x-amazon-replica
 npm install
-cp .env.example .env.local     # fill in the three Supabase values
-npm run seed                   # catalog, reviews, demo shopper
+cp .env.example .env.local     # then fill in your Supabase values
+npm run seed                   # catalog, reviews, vouchers, demo shopper
 npm run dev
 ```
 
-Before the first seed, run `supabase/schema.sql` and then
-`supabase/search-function.sql` in the Supabase SQL editor, and turn **Confirm
-email** off under Authentication → Providers → Email so sign-up completes in
-one step. Both files are idempotent.
+Before the first seed, run these three in the Supabase SQL editor, in order.
+All are idempotent:
+
+| File | Creates |
+| --- | --- |
+| `supabase/schema.sql` | Tables, indexes, RLS policies, the new-user trigger |
+| `supabase/search-function.sql` | `search_catalog()` and its supporting indexes |
+| `supabase/coupons.sql` | Vouchers, and the order columns that record one |
+
+Then turn **Confirm email** off under *Authentication → Providers → Email*,
+unless you enjoy rate limits. If you leave it on, `/auth/confirm` handles the
+link — just set your deployment as the **Site URL**, or it will point at
+localhost.
 
 ### Environment
 
-| Variable | Where it is used | Set in hosting? |
+| Variable | Used by | Set in hosting? |
 | --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Browser and server | Yes |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server, under RLS | Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | `scripts/seed.mjs` only, from a terminal | **No** |
-| `REVALIDATE_SECRET` | `/api/revalidate`, so a re-seed can purge the live cache | Yes |
-| `SITE_URL` | The seed script, to call that endpoint | No |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser + server | Yes |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser + server, under RLS | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | `scripts/seed.mjs`, from a terminal | **No** |
+| `REVALIDATE_SECRET` | `/api/revalidate`, so a re-seed clears the cache | Yes |
+| `SITE_URL` | The seed, to call that endpoint | No |
 
-The first two keep their `NEXT_PUBLIC_` prefix deliberately: `lib/supabase/client.ts`
-runs in the browser, and without the prefix those values are `undefined` at
-runtime. Publishing them is safe by design — the anon key only asserts "an
-anonymous visitor", and every table's access is decided by RLS, not by the key.
+The first two keep their `NEXT_PUBLIC_` prefix deliberately — the browser
+client reads them, and publishing them is safe by design, because access is
+decided by row-level security rather than by possession of the key.
 
-The service role key is the one that matters. It bypasses RLS entirely, nothing
-under `src/` reads it, and the deployment never needs it — so it should not
-exist in the hosting provider's environment at all. It must never be given a
-`NEXT_PUBLIC_` prefix, which would ship it to every visitor's browser.
+The service role key is the one that matters: it bypasses RLS entirely,
+nothing under `src/` reads it, and the deployment has no use for it. It must
+never get a `NEXT_PUBLIC_` prefix.
 
-## Agent logs
+## Known limits
 
-Every prompt and response from the build is committed under `.agent-logs/`,
-one file per session.
+Every route is server-rendered per request, because the layout reads cookies
+for the cart badge and the greeting — which means `X-Vercel-Cache: MISS` on
+everything and a TTFB around half a second. The fix is Partial Prerendering:
+serve a static shell from the CDN and stream the personalised bits. It is the
+one genuinely architectural thing still on the list.
+
+Search has no autocomplete yet, which is the gap you would feel first at this
+catalog size.
+
+## The agent logs
+
+`.agent-logs/` holds every prompt and every response from the build, committed
+as it went — 2,400+ lines across three sessions, tool calls included. The
+capture hook replays the session transcript from a cursor rather than sampling
+it, after the first version quietly kept one sentence out of a 25-minute turn.
 
 ## Attribution
 
 Bazaar is an independent portfolio exercise and is not affiliated with any
-retailer. Product data and imagery come from the public
-[DummyJSON](https://dummyjson.com) catalog and from
-[Open Library](https://openlibrary.org), whose cover art is served by the
-Internet Archive. No real payments are processed.
+retailer. Product data and imagery come from [DummyJSON](https://dummyjson.com)
+and [Open Library](https://openlibrary.org), whose covers are served by the
+Internet Archive. No real payments are processed, and no card number is stored
+— only the last four digits, so the order history has something to show.
