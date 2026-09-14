@@ -238,7 +238,7 @@ async function main() {
   // --------------------------------------------------------------- reviews --
   const { data: saved, error: readErr } = await db
     .from("products")
-    .select("id, slug");
+    .select("id, slug, title, price_cents, images");
   if (readErr) throw readErr;
   const idBySlug = new Map(saved.map((r) => [r.slug, r.id]));
 
@@ -270,7 +270,123 @@ async function main() {
   }
   console.log(`  ${reviewRows.length} reviews`);
 
+  await seedDemoShopper(saved);
+
   console.log("Seed complete.");
+}
+
+const DEMO_EMAIL = "demo@bazaar.shop";
+const DEMO_PASSWORD = "demo-shopper-2024";
+
+/**
+ * A ready-made account so anyone evaluating the storefront lands on a filled
+ * order history instead of an empty state. Idempotent: re-seeding reuses the
+ * same user and replaces its orders.
+ */
+async function seedDemoShopper(products) {
+  const { data: list } = await db.auth.admin.listUsers({ perPage: 200 });
+  let user = list?.users?.find((u) => u.email === DEMO_EMAIL);
+
+  if (!user) {
+    const { data, error } = await db.auth.admin.createUser({
+      email: DEMO_EMAIL,
+      password: DEMO_PASSWORD,
+      email_confirm: true,
+      user_metadata: { full_name: "Dana Reyes" },
+    });
+    if (error) throw error;
+    user = data.user;
+  }
+
+  await db.from("profiles").upsert({ id: user.id, full_name: "Dana Reyes" });
+
+  await db.from("addresses").delete().eq("user_id", user.id);
+  const { data: address, error: addressError } = await db
+    .from("addresses")
+    .insert({
+      user_id: user.id,
+      full_name: "Dana Reyes",
+      line1: "1412 Marion Street",
+      line2: "Apt 5B",
+      city: "Seattle",
+      state: "WA",
+      postal_code: "98101",
+      country: "United States",
+      phone: "(206) 555-0182",
+      is_default: true,
+    })
+    .select()
+    .single();
+  if (addressError) throw addressError;
+
+  await db.from("orders").delete().eq("user_id", user.id);
+
+  // Two orders at different ages, so the tracking strip shows a delivered
+  // order and one still in flight.
+  const plans = [
+    { daysAgo: 9, etaOffset: -4, picks: 3 },
+    { daysAgo: 1, etaOffset: 3, picks: 2 },
+  ];
+
+  const pool = products.filter((p) => p.images?.length);
+
+  for (const [index, plan] of plans.entries()) {
+    const picks = [];
+    for (let i = 0; i < plan.picks; i++) {
+      picks.push(pool[Math.floor(hashUnit(`demo-${index}-${i}`, 11) * pool.length)]);
+    }
+
+    const lines = picks.map((p, i) => ({
+      product: p,
+      qty: 1 + Math.floor(hashUnit(`qty-${index}-${i}`, 5) * 2),
+    }));
+
+    const subtotal = lines.reduce(
+      (sum, l) => sum + l.product.price_cents * l.qty,
+      0,
+    );
+    const shipping = subtotal >= 3500 ? 0 : 499;
+    const tax = Math.round(subtotal * 0.0825);
+
+    const placedAt = new Date();
+    placedAt.setDate(placedAt.getDate() - plan.daysAgo);
+    const eta = new Date();
+    eta.setDate(eta.getDate() + plan.etaOffset);
+
+    const { data: order, error: orderError } = await db
+      .from("orders")
+      .insert({
+        user_id: user.id,
+        subtotal_cents: subtotal,
+        shipping_cents: shipping,
+        tax_cents: tax,
+        total_cents: subtotal + shipping + tax,
+        ship_to: address,
+        payment_last4: "4242",
+        payment_brand: "Visa",
+        delivery_speed: "standard",
+        eta_date: eta.toISOString().slice(0, 10),
+        placed_at: placedAt.toISOString(),
+      })
+      .select()
+      .single();
+    if (orderError) throw orderError;
+
+    const { error: itemsError } = await db.from("order_items").insert(
+      lines.map((l) => ({
+        order_id: order.id,
+        product_id: l.product.id,
+        title: l.product.title,
+        slug: l.product.slug,
+        image_url: l.product.images[0],
+        unit_price_cents: l.product.price_cents,
+        qty: l.qty,
+      })),
+    );
+    if (itemsError) throw itemsError;
+  }
+
+  console.log(`  demo shopper ${DEMO_EMAIL} with ${plans.length} orders`);
 }
 
 main().catch((err) => {
