@@ -180,8 +180,8 @@ async function ProductExtras({
 }) {
   const [reviews, related, bundle] = await Promise.all([
     getReviews(product.id),
-    getRelated(product),
-    getBoughtTogether(product),
+    getRelated(product.category_slug, product.id),
+    getBoughtTogether(product.category_slug, product.id, product.price_cents),
   ]);
 
   return (

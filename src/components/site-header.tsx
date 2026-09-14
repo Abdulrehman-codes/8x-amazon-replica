@@ -7,19 +7,14 @@ import { AccountMenu } from "@/components/account-menu";
 import { NavDrawer } from "@/components/nav-drawer";
 import { getNav } from "@/lib/queries";
 import { getCartCount } from "@/lib/cart";
-import { getCurrentUser } from "@/lib/supabase/server";
+import { getViewerName } from "@/lib/supabase/server";
 
 export async function SiteHeader() {
-  const [departments, cartCount, user] = await Promise.all([
+  const [departments, cartCount, name] = await Promise.all([
     getNav(),
     getCartCount(),
-    getCurrentUser(),
+    getViewerName(),
   ]);
-
-  const name =
-    (user?.user_metadata?.full_name as string | undefined) ??
-    user?.email?.split("@")[0] ??
-    null;
 
   return (
     <header className="sticky top-0 z-40">
