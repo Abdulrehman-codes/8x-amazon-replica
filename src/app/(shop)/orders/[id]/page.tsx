@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { CheckCircle2 } from "lucide-react";
 import { TrackingStrip } from "@/components/tracking-strip";
+import { OrderCelebration } from "@/components/order-celebration";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { statusForOrder, STATUS_LABELS } from "@/lib/delivery";
 import { formatPrice } from "@/lib/utils";
@@ -44,9 +45,11 @@ export default async function OrderDetailPage({
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-4 px-3 py-5">
+      {justPlaced && <OrderCelebration />}
+
       {justPlaced && (
-        <div className="flex items-start gap-3 rounded-card border border-success/30 bg-success/5 p-5">
-          <CheckCircle2 size={26} className="shrink-0 text-success" />
+        <div className="animate-slide-up flex items-start gap-3 rounded-card border border-success/30 bg-success/5 p-5">
+          <CheckCircle2 size={26} className="animate-pop shrink-0 text-success" />
           <div>
             <h1 className="text-xl font-bold text-success">
               Order placed — thank you

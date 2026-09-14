@@ -59,3 +59,107 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ---------------------------------------------------------------- motion --
+   Everything here is decoration. A visitor who has asked their system for
+   less motion gets the layout and none of the movement. */
+
+@keyframes bz-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes bz-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+@keyframes bz-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+
+@keyframes bz-slide-up {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes bz-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgb(245 165 36 / 0.55); }
+  70%  { box-shadow: 0 0 0 12px rgb(245 165 36 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(245 165 36 / 0); }
+}
+
+@utility animate-fade-up {
+  animation: bz-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-pop {
+  animation: bz-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@utility animate-slide-up {
+  animation: bz-slide-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-pulse-ring {
+  animation: bz-pulse-ring 1.4s ease-out infinite;
+}
+
+/* Sweeping highlight for loading placeholders. */
+@utility shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.65) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: bz-shimmer 1.6s linear infinite;
+}
+
+/* Grid children arrive in sequence rather than all at once. */
+@utility stagger-children {
+  & > * {
+    animation: bz-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  & > *:nth-child(1)  { animation-delay: 0.02s; }
+  & > *:nth-child(2)  { animation-delay: 0.04s; }
+  & > *:nth-child(3)  { animation-delay: 0.06s; }
+  & > *:nth-child(4)  { animation-delay: 0.08s; }
+  & > *:nth-child(5)  { animation-delay: 0.10s; }
+  & > *:nth-child(6)  { animation-delay: 0.12s; }
+  & > *:nth-child(7)  { animation-delay: 0.14s; }
+  & > *:nth-child(8)  { animation-delay: 0.16s; }
+  & > *:nth-child(9)  { animation-delay: 0.18s; }
+  & > *:nth-child(10) { animation-delay: 0.20s; }
+  & > *:nth-child(n + 11) { animation-delay: 0.22s; }
+}
+
+/* The element that flies from a product image into the cart. */
+.bz-flyer {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  border-radius: 8px;
+  object-fit: contain;
+  background: var(--color-surface);
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.28);
+  transition:
+    transform 0.72s cubic-bezier(0.55, -0.32, 0.48, 1.02),
+    opacity 0.72s ease-in,
+    width 0.72s ease-in,
+    height 0.72s ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .bz-flyer { display: none; }
+}

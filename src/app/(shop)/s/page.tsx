@@ -72,7 +72,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/s">) {
             <EmptyResults query={params.q} />
           ) : (
             <>
-              <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(200px,1fr))]">
+              <div className="stagger-children grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(200px,1fr))]">
                 {result.items.map((product) => (
                   <ProductCard key={product.id} product={product} extraDays={extraDays} />
                 ))}

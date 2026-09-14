@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ShoppingCart, Check } from "lucide-react";
+import { ShoppingCart, Check, BadgePercent } from "lucide-react";
 import { CartLineRow } from "@/components/cart-line-row";
 import { ProductRail } from "@/components/product-rail";
 import { getCart } from "@/lib/cart";
@@ -18,6 +18,15 @@ export default async function CartPage() {
   if (cart.active.length === 0 && cart.saved.length === 0) {
     return <EmptyCart />;
   }
+
+  // What the list prices would have cost, so the discount is stated as money
+  // rather than left for the shopper to work out per line.
+  const savedCents = cart.active.reduce(
+    (sum, l) =>
+      sum +
+      Math.max(0, l.product.list_price_cents - l.product.price_cents) * l.qty,
+    0,
+  );
 
   const qualifies = cart.subtotalCents >= FREE_SHIPPING_THRESHOLD_CENTS;
   const remaining = FREE_SHIPPING_THRESHOLD_CENTS - cart.subtotalCents;
@@ -78,6 +87,13 @@ export default async function CartPage() {
                 {formatPrice(cart.subtotalCents)}
               </span>
             </p>
+
+            {savedCents > 0 && (
+              <p className="mt-1 flex items-center gap-1.5 rounded bg-success/10 px-2 py-1 text-sm font-semibold text-success">
+                <BadgePercent size={14} />
+                You saved {formatPrice(savedCents)} today
+              </p>
+            )}
 
             <Link
               href="/checkout"

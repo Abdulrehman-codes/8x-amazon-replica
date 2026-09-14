@@ -62,6 +62,7 @@ export function ImageGallery({
       )}
 
       <div
+        data-product-image
         className="relative aspect-square min-w-0 flex-1 overflow-hidden rounded-card bg-surface"
         onMouseMove={handleMove}
         onMouseLeave={() => setOrigin(null)}

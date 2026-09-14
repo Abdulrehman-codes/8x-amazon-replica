@@ -3,13 +3,15 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Truck, RotateCcw, ShieldCheck, Plus } from "lucide-react";
+import { Truck, RotateCcw, ShieldCheck, Plus, Zap } from "lucide-react";
+import { DealCountdown } from "@/components/deal-countdown";
+import { dealEndsAt, isLightningDeal, savingsCents } from "@/lib/deals";
+import { Price, ListPrice } from "@/components/ui/price";
 import { ImageGallery } from "@/components/image-gallery";
 import { AddToCart } from "@/components/add-to-cart";
 import { ReviewsSection } from "@/components/reviews-section";
 import { ProductRail } from "@/components/product-rail";
 import { Stars } from "@/components/ui/stars";
-import { Price, ListPrice } from "@/components/ui/price";
 import { ExpressBadge } from "@/components/ui/express-badge";
 import {
   getProduct,
@@ -103,6 +105,22 @@ export default async function ProductPage({ params }: PageProps<"/dp/[slug]">) {
               priceCents={product.price_cents}
             />
           </div>
+
+          {isLightningDeal(product) && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-card border border-accent/40 bg-accent-soft px-3 py-2">
+              <span className="flex items-center gap-1.5 text-sm font-bold text-fg">
+                <Zap size={14} fill="currentColor" strokeWidth={0} className="text-accent" />
+                Lightning deal
+              </span>
+              <span className="text-sm text-fg-muted">
+                You save{" "}
+                <span className="font-semibold text-success">
+                  {formatPrice(savingsCents(product))}
+                </span>
+              </span>
+              <DealCountdown endsAt={dealEndsAt(product).getTime()} />
+            </div>
+          )}
           {product.is_prime && <ExpressBadge className="mt-2" />}
 
           <hr className="my-4 border-border" />
@@ -146,6 +164,8 @@ export default async function ProductPage({ params }: PageProps<"/dp/[slug]">) {
           <AddToCart
             productId={product.id}
             stock={product.stock}
+            title={product.title}
+            image={product.images[0]}
             className="mt-4"
           />
 

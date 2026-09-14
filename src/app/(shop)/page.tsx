@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { ProductRail } from "@/components/product-rail";
+import { LightningDeals } from "@/components/lightning-deals";
 import { getHomeData, type DepartmentWithCategories } from "@/lib/queries";
 
 export default async function HomePage() {
@@ -13,19 +14,15 @@ export default async function HomePage() {
 
       <div className="mx-auto max-w-[1500px] space-y-5 px-3 pb-10">
         {/* The card grid rides up over the hero, the way the original does. */}
-        <div className="-mt-24 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="stagger-children -mt-24 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {nav.slice(0, 4).map((dept) => (
             <DepartmentCard key={dept.slug} department={dept} />
           ))}
         </div>
 
-        <ProductRail
-          title="Today's deals"
-          href="/s?deals=1"
-          products={deals}
-        />
+        <LightningDeals products={deals} />
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="stagger-children grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {nav.slice(4, 8).map((dept) => (
             <DepartmentCard key={dept.slug} department={dept} />
           ))}
@@ -62,8 +59,8 @@ function Hero() {
           Everything you need, and it arrives when we say it will.
         </h1>
         <p className="mt-4 max-w-xl text-base text-white/70">
-          Two hundred thousand products across eight departments, with a real
-          delivery date on every one of them — quoted before you buy, not after.
+          Thousands of products across nine departments, each with a real
+          delivery date — quoted before you buy, not after.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <Link

@@ -6,6 +6,8 @@ import { SearchBar } from "@/components/search-bar";
 import { AccountMenu } from "@/components/account-menu";
 import { NavDrawer } from "@/components/nav-drawer";
 import { LocationPicker } from "@/components/location-picker";
+import { CartBadge } from "@/components/cart-badge";
+import { PromoStrip } from "@/components/promo-strip";
 import { getNav } from "@/lib/queries";
 import { getCartCount } from "@/lib/cart";
 import { getLocation } from "@/lib/location";
@@ -53,9 +55,7 @@ export async function SiteHeader() {
           >
             <span className="relative">
               <ShoppingCart size={26} strokeWidth={1.5} />
-              <span className="absolute -top-1 left-1/2 min-w-5 -translate-x-1/2 rounded-full bg-accent px-1 text-center text-xs font-bold text-ink">
-                {cartCount}
-              </span>
+              <CartBadge count={cartCount} />
             </span>
             <span className="hidden text-sm font-semibold sm:block">Cart</span>
           </Link>
@@ -83,6 +83,8 @@ export async function SiteHeader() {
           </Link>
         </div>
       </div>
+
+      <PromoStrip />
     </header>
   );
 }
