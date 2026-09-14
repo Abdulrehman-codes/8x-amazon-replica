@@ -377,7 +377,33 @@ async function main() {
 
   await seedDemoShopper(saved);
 
+  await purgeSiteCache();
+
   console.log("Seed complete.");
+}
+
+// Must match src/lib/demo.ts, which the sign-in button reads.
+/**
+ * Catalog reads are cached across requests in the deployed app, and that cache
+ * outlives a deployment, so a fresh seed is invisible until it is purged.
+ */
+async function purgeSiteCache() {
+  const site = process.env.SITE_URL;
+  const secret = process.env.REVALIDATE_SECRET;
+  if (!site || !secret) {
+    console.log("  (set SITE_URL and REVALIDATE_SECRET to purge the live cache)");
+    return;
+  }
+  try {
+    const res = await fetch(`${site.replace(/\/$/, "")}/api/revalidate`, {
+      method: "POST",
+      headers: { "x-revalidate-secret": secret },
+      signal: AbortSignal.timeout(15_000),
+    });
+    console.log(res.ok ? "  live cache purged" : `  cache purge failed: ${res.status}`);
+  } catch (err) {
+    console.log(`  cache purge failed: ${err.message}`);
+  }
 }
 
 // Must match src/lib/demo.ts, which the sign-in button reads.

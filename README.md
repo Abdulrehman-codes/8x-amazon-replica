@@ -46,6 +46,14 @@ bookmarkable, back-button-correct, and functional with JavaScript disabled.
 offering the options a shopper can still move to instead of collapsing to
 whatever is already selected.
 
+**The catalog is cached; the nav is not.** Product queries are expensive and
+change only when the seed runs, so they persist across requests behind a
+`catalog` tag. The nav is two small indexed reads and is the most visible thing
+on the page, so it is deduped per render and never cached beyond it — a
+department added by a re-seed shows up immediately. Because a hosted data cache
+outlives a deployment, `npm run seed` finishes by calling `/api/revalidate` to
+purge the tagged product data.
+
 **Search runs entirely in Postgres.** `search_catalog` does filtering, faceting,
 sorting and paging in one round trip and returns a single page plus its facet
 counts. An earlier version pulled the whole match set and counted facets in
@@ -102,6 +110,8 @@ one step. Both files are idempotent.
 | `NEXT_PUBLIC_SUPABASE_URL` | Browser and server | Yes |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server, under RLS | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | `scripts/seed.mjs` only, from a terminal | **No** |
+| `REVALIDATE_SECRET` | `/api/revalidate`, so a re-seed can purge the live cache | Yes |
+| `SITE_URL` | The seed script, to call that endpoint | No |
 
 The first two keep their `NEXT_PUBLIC_` prefix deliberately: `lib/supabase/client.ts`
 runs in the browser, and without the prefix those values are `undefined` at

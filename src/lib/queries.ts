@@ -44,7 +44,15 @@ function catalogQuery<Args extends unknown[], Result>(
 
 export type DepartmentWithCategories = Department & { categories: Category[] };
 
-export const getNav = catalogQuery(["nav"], async (): Promise<
+/**
+ * Deduped within a render but deliberately NOT cached across requests.
+ *
+ * The nav is two small indexed reads, and it is the most visible thing in the
+ * app — a department added by a re-seed should appear immediately rather than
+ * whenever a TTL happens to lapse. The expensive product queries below are the
+ * ones worth persisting.
+ */
+export const getNav = cache(async (): Promise<
   DepartmentWithCategories[]
 > => {
   const [{ data: departments }, { data: categories }] = await Promise.all([
