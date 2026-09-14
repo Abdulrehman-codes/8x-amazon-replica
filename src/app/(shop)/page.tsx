@@ -6,9 +6,16 @@ import { EndlessShelves } from "@/components/endless-shelves";
 import { getHomeData, getShelves } from "@/lib/queries";
 import { HERO_SLIDES } from "@/lib/shelves";
 
-/** Shelves rendered on the server before the scroll takes over. */
+/**
+ * Shelves rendered on the server before the scroll takes over.
+ *
+ * Kept deliberately small. Twelve shelves up front put 403KB and ~48 images
+ * in the first response and doubled TTFB; eight lands the first screen quickly
+ * and the observer — which sits 900px down and so fires almost immediately on
+ * a page this tall — has the next batch in place before it is scrolled to.
+ */
 const FIRST_BATCH = 4;
-const SECOND_BATCH = 8;
+const SECOND_BATCH = 4;
 
 export default async function HomePage() {
   const [{ deals, topRated, underTwentyFive }, shelves] = await Promise.all([
